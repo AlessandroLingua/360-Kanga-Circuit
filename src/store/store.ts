@@ -7,6 +7,7 @@ import type { FigureModel } from '../engine/figure';
 import type { Discipline, Lang, MusicGenre, Session } from '../engine/types';
 import { DEFAULT_YOGA, type YogaConfig } from '../engine/yoga';
 import { detectLang } from '../i18n';
+import { settingsChanged } from './profile';
 
 export interface HistoryEntry {
   id: string;
@@ -59,6 +60,8 @@ export interface AppState {
   reminders: { enabled: boolean; items: Reminder[]; lastFired?: Record<string, string> };
   /** Instructor drawn in the player and thumbnails. */
   figure: FigureModel;
+  /** Last change to the settings that sync across devices (0 = untouched defaults). */
+  settingsAt: number;
   updatedAt: number;
 }
 
@@ -86,6 +89,7 @@ const initial = (): AppState => {
     challenge: { active: null, past: [] },
     reminders: { enabled: false, items: [{ id: 'r1', time: '09:00', days: [0, 1, 2, 3, 4, 5, 6] }] },
     figure: 'female',
+    settingsAt: 0,
     updatedAt: Date.now(),
   };
 };
@@ -108,6 +112,7 @@ function load(): AppState {
         practice: { ...base.practice, ...s.practice },
         challenge: { ...base.challenge, ...s.challenge },
         reminders: { ...base.reminders, ...s.reminders },
+        settingsAt: s.settingsAt ?? s.updatedAt ?? 0,
       };
     }
   } catch {
@@ -133,7 +138,10 @@ export function getState() {
 
 export function setState(patch: Partial<AppState> | ((s: AppState) => Partial<AppState>)) {
   const p = typeof patch === 'function' ? patch(state) : patch;
-  state = { ...state, ...p, updatedAt: Date.now() };
+  const prev = state;
+  const now = Date.now();
+  state = { ...state, ...p, updatedAt: now };
+  if (settingsChanged(prev, state)) state.settingsAt = now;
   persist();
   listeners.forEach((l) => l());
 }
@@ -145,9 +153,15 @@ export function replaceState(s: AppState) {
 }
 
 export function resetState() {
-  state = initial();
+  state = { ...initial(), settingsAt: Date.now() };
   persist();
   listeners.forEach((l) => l());
+}
+
+/** Listen to every state change (used by background sync). */
+export function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
 }
 
 export function useStore<T>(sel: (s: AppState) => T): T {

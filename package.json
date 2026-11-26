@@ -11,7 +11,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
-    "test": "tsx scripts/engine-check.ts",
+    "test": "tsx scripts/engine-check.ts && tsx scripts/sync-check.ts",
     "cap:sync": "npm run build && cap sync",
     "android": "npm run cap:sync && cap open android",
     "ios": "npm run cap:sync && cap open ios",
@@ -26,6 +26,7 @@
     "@capacitor/core": "^8.6.3",
     "@capacitor/ios": "^8.6.3",
     "@capgo/capacitor-health": "^8.13.0",
+    "@capgo/capacitor-social-login": "^8.7.13",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

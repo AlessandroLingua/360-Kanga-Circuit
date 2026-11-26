@@ -5,9 +5,64 @@ import { getMove } from '../engine/animate';
 import { moveName } from '../engine/cues';
 import { LANGS, type Lang } from '../engine/types';
 import { LANG_NAMES, useLang, useT } from '../i18n';
+import { googleSyncUnavailable, signInWithGoogle, signOutOfGoogle, syncWithDrive, useDriveSync } from '../services/driveSync';
 import { connectHealth, healthSupported } from '../services/health';
 import { exportData, importData, newAccountCode, syncNow } from '../services/sync';
 import { clearPref, resetState, setState, useStore } from '../store/store';
+
+function GoogleSyncCard() {
+  const t = useT();
+  const { account, status, pending } = useDriveSync();
+  const unavailable = googleSyncUnavailable();
+  const busy = status === 'syncing';
+  const statusMsg =
+    status === 'syncing' ? t('syncing')
+    : status === 'offline' ? t('syncOffline')
+    : status === 'reauth' ? t('syncReauth')
+    : status === 'denied' ? t('syncDenied')
+    : status === 'error' ? t('syncDriveError')
+    : pending ? t('syncPending')
+    : '';
+  const warn = status === 'error' || status === 'denied';
+
+  return (
+    <Card title={t('accountAndSync')}>
+      <p className="hint">{t('googleSyncDesc')}</p>
+      {unavailable ? (
+        <p className="hint">{unavailable === 'noClientId' ? t('googleNotConfigured') : t('googleUnsupported')}</p>
+      ) : !account ? (
+        <>
+          <button className="primary" disabled={busy} onClick={() => void signInWithGoogle()}>{t('signInGoogle')}</button>
+          {statusMsg && <p className={warn ? 'hint warn' : 'hint'}>{statusMsg}</p>}
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0' }}>
+            {account.picture ? (
+              <img src={account.picture} alt="" width={40} height={40} referrerPolicy="no-referrer" style={{ borderRadius: '50%', flex: 'none' }} />
+            ) : (
+              <span aria-hidden style={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--accent, #3a6)', color: '#fff', fontWeight: 600, flex: 'none' }}>
+                {(account.name || account.email || '?').charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div style={{ minWidth: 0 }}>
+              {account.name && <div style={{ fontWeight: 600 }}>{account.name}</div>}
+              <div className="hint" style={{ margin: 0, overflowWrap: 'anywhere' }}>{account.email}</div>
+            </div>
+          </div>
+          <p className="hint">
+            {t('lastSync')}: {account.lastSync ? new Date(account.lastSync).toLocaleString() : t('neverSynced')}
+          </p>
+          {statusMsg && <p className={warn ? 'hint warn' : 'hint'} role="status">{statusMsg}</p>}
+          <div className="row-actions">
+            <button className="primary" disabled={busy} onClick={() => void syncWithDrive()}>{busy ? t('syncing') : t('syncNow')}</button>
+            <button className="ghost" onClick={() => void signOutOfGoogle()}>{t('signOut')}</button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
 
 export function Settings() {
   const t = useT();
@@ -37,6 +92,7 @@ export function Settings() {
 
   return (
     <div className="setup">
+      <GoogleSyncCard />
       <Card title={t('figureModel')}>
         <p className="hint">{t('figureModelSub')}</p>
         <Segmented value={figure} onChange={(v) => setState({ figure: v })} options={[{ value: 'female' as const, label: t('female') }, { value: 'male' as const, label: t('male') }]} />
