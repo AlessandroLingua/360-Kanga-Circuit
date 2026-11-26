@@ -1,0 +1,27 @@
+// Sanity check for the generative engine: every style/duration produces a session of the requested length.
+import { generateYoga, DEFAULT_YOGA } from '../src/engine/yoga.ts';
+import { generateNidra, generateMeditation, DEFAULT_MEDITATION } from '../src/engine/mind.ts';
+import { generateFitness, DEFAULT_FITNESS } from '../src/engine/fitness.ts';
+
+let fail = 0;
+const check = (label: string, got: number, want: number, tol: number) => {
+  const ok = Math.abs(got - want) <= tol;
+  if (!ok) fail++;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${label.padEnd(44)} ${Math.round(got)}s / ${want}s`);
+};
+const styles = ['vinyasa', 'hatha', 'gentle', 'restorative', 'yin', 'ashtanga', 'sunSalutation'] as const;
+for (const style of styles) for (const minutes of [5, 10, 30, 60, 90]) for (const level of [1, 3, 5] as const) {
+  const s = generateYoga({ ...DEFAULT_YOGA, style, minutes, level, savasanaMin: minutes >= 30 ? 5 : 1 }, 1234 + minutes + level);
+  check(`yoga ${style} ${minutes}m L${level} (${s.segments.length} seg)`, s.totalSeconds, minutes * 60, Math.max(30, minutes * 60 * 0.1));
+}
+const a = generateYoga({ ...DEFAULT_YOGA }, 42), b = generateYoga({ ...DEFAULT_YOGA }, 42), c = generateYoga({ ...DEFAULT_YOGA }, 43);
+const sig = (x: typeof a) => x.segments.map((s) => s.moveId + s.side).join(',');
+console.log(sig(a) === sig(b) ? 'ok   same seed → same session' : (fail++, 'FAIL determinism'));
+console.log(sig(a) !== sig(c) ? 'ok   different seed → different session' : (fail++, 'FAIL variety'));
+const dis = generateYoga({ ...DEFAULT_YOGA, dislikes: ['downDog', 'warrior2'] }, 7);
+console.log(!dis.segments.some((s) => s.moveId === 'downDog' || s.moveId === 'warrior2') ? 'ok   dislikes excluded' : (fail++, 'FAIL dislikes'));
+check('nidra 30m', generateNidra(30, false, 'it', 1).totalSeconds, 1800, 5);
+for (const goal of ['sleep', 'stress', 'focus', 'breath', 'timer'] as const) check(`meditation ${goal} 10m`, generateMeditation({ ...DEFAULT_MEDITATION, goal }, 1).totalSeconds, 600, 5);
+for (const d of ['pilates', 'hiit'] as const) for (const m of [10, 20, 45]) check(`${d} ${m}m`, generateFitness({ ...DEFAULT_FITNESS(d), minutes: m }, 9).totalSeconds, m * 60, m * 60 * 0.12);
+console.log('\nsample vinyasa 20m:', generateYoga({ ...DEFAULT_YOGA, minutes: 20, lang: 'en' }, 5).segments.map((s) => `${s.title}${s.side ? '(' + s.side[0] + ')' : ''} ${Math.round(s.duration)}s`).join(' · '));
+process.exit(fail ? 1 : 0);
