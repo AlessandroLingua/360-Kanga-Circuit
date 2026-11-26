@@ -20,6 +20,9 @@ export const detectLang = (): Lang => {
 
 export const translate = (lang: Lang, k: StrKey) => STRINGS[k][idx[lang]] ?? STRINGS[k][1];
 
+/** Fill `{name}` placeholders in a translated string. */
+export const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+
 export const LangCtx = createContext<Lang>('it');
 export const useT = () => {
   const lang = useContext(LangCtx);

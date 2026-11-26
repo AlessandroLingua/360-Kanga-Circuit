@@ -3,6 +3,7 @@
  * Long-form guidance scripts are written in Italian and English; other languages fall back to English.
  */
 import { Rng } from './rng';
+import { MED_THEMES, THEME_TEXT, type MedThemeChoice } from './themes';
 import type { Cue, Lang, Segment, Session } from './types';
 
 type Bi = { en: string; it: string };
@@ -122,7 +123,17 @@ export interface MeditationConfig {
   /** timer: interval bell in minutes (0 = only start/end) */
   bellMinutes: number;
   lang: Lang;
+  /** Theme woven into guided meditations ('any' = a different one each session). */
+  theme?: MedThemeChoice;
+  /** 0 (least talking) … 4 (most); replaces `silence` when set. */
+  guidance?: number;
+  /** One longer silent stretch in seconds; undefined = chosen from the length. */
+  longSilence?: number;
 }
+
+/** Seconds between guidance lines for each "Proporzione guida" step. */
+export const GUIDANCE_GAP = [70, 45, 28, 16, 8];
+export const autoLongSilence = (minutes: number) => Math.round(Math.max(30, Math.min(300, minutes * 60 * 0.15)) / 30) * 30;
 
 export const DEFAULT_MEDITATION: MeditationConfig = { goal: 'stress', minutes: 10, silence: 30, pattern: 'box', bellMinutes: 0, lang: 'it' };
 
@@ -195,19 +206,32 @@ export function generateMeditation(cfg: MeditationConfig, seed: number): Session
     segs.push(seg(L === 'it' ? 'Chiusura' : 'Close', 'close', outro, [{ at: 0.5, text: MED.breath.close[0][L] }]));
   } else {
     const bank = MED[cfg.goal];
-    const intro = Math.min(45, T * 0.12);
+    const themeId = cfg.theme === 'any' ? r.pick([...MED_THEMES]) : cfg.theme && cfg.theme !== 'none' ? cfg.theme : null;
+    const theme = themeId ? THEME_TEXT[themeId] : null;
+    const intro = Math.min(theme ? 60 : 45, T * 0.15);
     const close = Math.min(40, T * 0.1);
     const body = T - intro - close;
-    const lines = r.shuffle(bank.body);
+    // theme lines alternate with the goal's own guidance
+    const goalLines = r.shuffle(bank.body);
+    const themeLines = theme ? r.shuffle(theme.body) : [];
+    const lines = theme ? goalLines.flatMap((g, k) => [themeLines[k % themeLines.length], g]) : goalLines;
+    const gap = cfg.guidance !== undefined ? GUIDANCE_GAP[Math.max(0, Math.min(4, cfg.guidance))] : cfg.silence;
+    // one longer silence, placed a little past the middle of the practice
+    const long = Math.min(cfg.longSilence ?? (cfg.guidance !== undefined ? autoLongSilence(cfg.minutes) : 0), body * 0.5);
     const cues: Cue[] = [];
     let t = 3;
     let i = 0;
+    let longDone = long <= 0;
     while (t < body - 10) {
       cues.push({ at: t, text: lines[i % lines.length][L] });
       i++;
-      t += 8 + cfg.silence;
+      t += 8 + gap;
+      if (!longDone && t > body * 0.5) {
+        t += long;
+        longDone = true;
+      }
     }
-    segs.push(seg(L === 'it' ? 'Introduzione' : 'Intro', 'intro', intro, [{ at: 0.5, text: bank.intro[0][L] }]));
+    segs.push(seg(L === 'it' ? 'Introduzione' : 'Intro', 'intro', intro, [{ at: 0.5, text: bank.intro[0][L] }, ...(theme ? [{ at: Math.max(2, Math.min(intro - 15, 18)), text: theme.intro[L] }] : [])]));
     segs.push(seg(L === 'it' ? 'Pratica' : 'Practice', 'body', body, cues));
     segs.push(seg(L === 'it' ? 'Chiusura' : 'Close', 'close', close, [{ at: 0.5, text: bank.close[0][L] }]));
   }

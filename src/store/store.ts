@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_FITNESS, type FitnessConfig } from '../engine/fitness';
 import { DEFAULT_MEDITATION, type MeditationConfig } from '../engine/mind';
+import { DEFAULT_MIX, type Constraints, type MixValues, type PracticeType } from '../engine/practice';
+import type { MedThemeChoice } from '../engine/themes';
 import type { Discipline, Lang, MusicGenre, Session } from '../engine/types';
 import { DEFAULT_YOGA, type YogaConfig } from '../engine/yoga';
 import { detectLang } from '../i18n';
@@ -13,6 +15,25 @@ export interface HistoryEntry {
   minutes: number;
   kcal: number;
   notes: string;
+}
+
+export interface Challenge {
+  id: string;
+  perWeek: number;
+  weeks: number;
+  /** 0 = Monday … 6 = Sunday */
+  startDay: number;
+  /** local midnight of the first day, ISO */
+  start: string;
+  endedAt?: string;
+  result?: 'done' | 'missed' | 'left';
+}
+
+export interface Reminder {
+  id: string;
+  time: string; // HH:MM
+  /** 0 = Monday … 6 = Sunday */
+  days: number[];
 }
 
 export interface AppState {
@@ -31,6 +52,10 @@ export interface AppState {
   downloads: Session[];
   health: { enabled: boolean };
   sync: { server: string; code: string; lastSync?: number };
+  practice: { type: PracticeType; mixId: string; mix: MixValues; constraints: Constraints; boostsYoga: string[]; boostsPilates: string[]; medTheme: MedThemeChoice };
+  challenge: { active: Challenge | null; past: Challenge[] };
+  /** lastFired: reminder id → day key, so each reminder fires once a day */
+  reminders: { enabled: boolean; items: Reminder[]; lastFired?: Record<string, string> };
   updatedAt: number;
 }
 
@@ -54,6 +79,9 @@ const initial = (): AppState => {
     downloads: [],
     health: { enabled: false },
     sync: { server: '', code: '' },
+    practice: { type: 'hiitAny', mixId: DEFAULT_MIX.id, mix: { ...DEFAULT_MIX.mix }, constraints: {}, boostsYoga: [], boostsPilates: [], medTheme: 'any' },
+    challenge: { active: null, past: [] },
+    reminders: { enabled: false, items: [{ id: 'r1', time: '09:00', days: [0, 1, 2, 3, 4, 5, 6] }] },
     updatedAt: Date.now(),
   };
 };
@@ -73,6 +101,9 @@ function load(): AppState {
         meditation: { ...base.meditation, ...s.meditation },
         audio: { ...base.audio, ...s.audio },
         goals: { ...base.goals, ...s.goals },
+        practice: { ...base.practice, ...s.practice },
+        challenge: { ...base.challenge, ...s.challenge },
+        reminders: { ...base.reminders, ...s.reminders },
       };
     }
   } catch {

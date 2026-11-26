@@ -35,7 +35,16 @@ export interface YogaConfig {
   dislikes: string[];
   /** Yoga Nidra only: end asleep, without the wake-up section. */
   nidraSleep?: boolean;
+  /** 0 (none) … 4 (super extended), 2 = default; replaces `warmup` / `cooldown` when set. */
+  warmupStep?: number;
+  cooldownStep?: number;
+  /** 0 (shortest holds) … 4 (longest), 2 = default. */
+  holdStep?: number;
 }
+
+/** Phase-length multiplier and hold multiplier for each 0…4 step of the settings sliders. */
+export const PHASE_STEP = [0, 0.5, 1, 1.8, 2.6];
+export const HOLD_STEP = [0.6, 0.8, 1, 1.3, 1.6];
 
 export const DEFAULT_YOGA: YogaConfig = {
   style: 'vinyasa',
@@ -122,6 +131,9 @@ class Builder {
     return m;
   }
   holdSeconds(m: Move, phase: Phase) {
+    return this.rawHold(m, phase) * HOLD_STEP[this.cfg.holdStep ?? 2];
+  }
+  rawHold(m: Move, phase: Phase) {
     const b = this.breath;
     const paceMul = [0, 1.35, 1.15, 1, 0.85, 0.72][this.cfg.pace];
     switch (this.style) {
@@ -309,9 +321,9 @@ export function generateYoga(cfg: YogaConfig, seed: number): Session {
 
   const split = { ...SPLIT[b.style] };
   const wm = { none: 0, standard: 1, extended: 1.8 } as const;
-  split.warmup *= wm[cfg.warmup];
-  split.cooldown *= wm[cfg.cooldown];
-  if (cfg.warmup === 'none') split.centering *= 0.5;
+  split.warmup *= cfg.warmupStep !== undefined ? PHASE_STEP[cfg.warmupStep] : wm[cfg.warmup];
+  split.cooldown *= cfg.cooldownStep !== undefined ? PHASE_STEP[cfg.cooldownStep] : wm[cfg.cooldown];
+  if (cfg.warmupStep !== undefined ? cfg.warmupStep === 0 : cfg.warmup === "none") split.centering *= 0.5;
   const sum = Object.values(split).reduce((a, x) => a + x, 0);
   const budget = (p: Phase) => (split[p] / sum) * body;
 
