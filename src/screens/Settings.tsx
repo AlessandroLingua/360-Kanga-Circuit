@@ -73,7 +73,10 @@ export function Settings() {
           </div>
         </Field>
         <div className="row-actions">
-          <button className="primary" onClick={async () => setSyncMsg(await syncNow())}>{t('syncNow')}</button>
+          <button className="primary" onClick={async () => {
+            const r = await syncNow();
+            setSyncMsg(r === 'ok' ? `✓ ${t('syncOk')}` : r === 'error' ? `✕ ${t('syncError')}` : t('syncMissing'));
+          }}>{t('syncNow')}</button>
           <button className="ghost" onClick={exportData}>{t('exportData')}</button>
           <label className="ghost file-btn">
             {t('importData')}
@@ -99,6 +102,7 @@ export function Settings() {
       </Card>
 
       <Card title={t('poseFilters')}>
+        {likes.length + dislikes.length === 0 && <p className="hint">{t('noPrefs')}</p>}
         <ul className="rate-list">
           {[...likes.map((id) => [id, 'like'] as const), ...dislikes.map((id) => [id, 'dislike'] as const)].map(([id, kind]) => {
             const m = getMove(id);

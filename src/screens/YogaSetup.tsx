@@ -91,12 +91,12 @@ export function YogaSetup({ onStart }: { onStart: (s: Session) => void }) {
               <Field label={t('primaryFocus')}>
                 <Select
                   value={cfg.focusPrimary}
-                  onChange={(v) => set({ focusPrimary: v as FocusArea | 'auto' | 'none' })}
+                  onChange={(v) => set({ focusPrimary: v as FocusArea | 'auto' | 'none', focusSecondary: v === cfg.focusSecondary ? 'none' : cfg.focusSecondary })}
                   options={[{ value: 'auto', label: `⟳ ${t('autoRotate')}` }, { value: 'none', label: t('none') }, ...focusOpts]}
                 />
               </Field>
               <Field label={t('secondaryFocus')}>
-                <Select value={cfg.focusSecondary} onChange={(v) => set({ focusSecondary: v as FocusArea | 'none' })} options={[{ value: 'none', label: t('none') }, ...focusOpts]} />
+                <Select value={cfg.focusSecondary} onChange={(v) => set({ focusSecondary: v as FocusArea | 'none' })} options={[{ value: 'none', label: t('none') }, ...focusOpts.filter((o) => o.value !== cfg.focusPrimary)]} />
               </Field>
             </div>
           </Card>

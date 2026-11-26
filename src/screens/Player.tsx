@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MusicEngine } from '../audio/music';
-import { listTeachers, pauseSpeaking, speak, stopSpeaking, type Teacher } from '../audio/voice';
+import { isSpeaking, listTeachers, pauseSpeaking, speak, stopSpeaking, type Teacher } from '../audio/voice';
 import { FigureCanvas } from '../components/FigureCanvas';
 import { figureAt, getMove, indexAt, offsets } from '../engine/animate';
 import { moveName } from '../engine/cues';
@@ -14,6 +14,9 @@ import { clearPref, dislikeMove, getState, likeMove, setState, useStore } from '
 import { fmt } from '../components/ui';
 import { phaseLabel, variantLabel } from '../i18n/variant';
 
+/** Seconds a subtitle stays on screen: roughly reading/speaking time. */
+const subtitleTime = (text: string) => Math.max(3.5, text.split(/\s+/).length * 0.45 + 1.5);
+
 export function Player({ session, onExit }: { session: Session; onExit: () => void }) {
   const t = useT();
   const lang = useLang();
@@ -22,69 +25,104 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
   const dislikes = useStore((s) => s.dislikes);
   const offs = useMemo(() => offsets(session), [session]);
 
+  const [ready, setReady] = useState(false);
   const [paused, setPaused] = useState(false);
   const [idx, setIdx] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [subtitle, setSubtitle] = useState('');
-  const [finished, setFinished] = useState<null | number>(null);
+  const [finished, setFinished] = useState<null | { active: number[]; early: boolean }>(null);
   const [showSubs, setShowSubs] = useState(audio.subtitles);
 
   const frameRef = useRef<{ fig: Figure; breath: number } | null>(null);
-  const clock = useRef({ base: 0, t0: performance.now(), paused: false });
+  // the clock starts paused and only runs once the voice is loaded, so the first instruction is never lost
+  const clock = useRef({ base: 0, t0: performance.now(), paused: true });
   const fired = useRef(new Set<string>());
   const music = useRef<MusicEngine | null>(null);
   const teacher = useRef<Teacher | null>(null);
   const lastBell = useRef(-1);
   const breathPhase = useRef(-1);
+  const subtitleUntil = useRef(0);
+  // real time spent in each segment (skips and pauses don't count)
+  const active = useRef<number[]>(session.segments.map(() => 0));
+  const lastFrame = useRef(0);
   const startedAt = useRef(new Date());
   const rootRef = useRef<HTMLDivElement>(null);
 
   const now = () => (clock.current.paused ? clock.current.base : clock.current.base + (performance.now() - clock.current.t0) / 1000);
 
-  // audio setup
+  // audio setup, then start the clock
   useEffect(() => {
+    let cancelled = false;
     const m = new MusicEngine();
     music.current = m;
     m.setVolume(audio.musicVolume);
     m.start(audio.genre);
-    listTeachers(session.lang).then((ts) => (teacher.current = ts[audio.teacherIdx % ts.length] ?? ts[0]));
+    listTeachers(session.lang).then((ts) => {
+      if (cancelled) return;
+      teacher.current = ts[audio.teacherIdx % ts.length] ?? ts[0] ?? null;
+      startedAt.current = new Date();
+      clock.current = { base: 0, t0: performance.now(), paused: false };
+      if (session.discipline === 'meditation') m.bell('soft');
+      setReady(true);
+    });
     let lock: { release: () => Promise<void> } | null = null;
     (navigator as unknown as { wakeLock?: { request: (t: string) => Promise<typeof lock> } }).wakeLock?.request('screen').then((l) => (lock = l)).catch(() => {});
     return () => {
-      m.stop();
-      m.ctx.close();
+      cancelled = true;
+      m.dispose();
       stopSpeaking();
       lock?.release().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const say = (text: string) => {
+  /**
+   * Voice policy (keeps voice and picture in sync):
+   * - the first cue of a segment interrupts whatever is still being said
+   * - later cues are skipped if the teacher is still talking, instead of queueing up
+   */
+  const say = (text: string, interrupt: boolean) => {
+    if (!interrupt && isSpeaking()) return;
     setSubtitle(text);
+    subtitleUntil.current = performance.now() + subtitleTime(text) * 1000;
     if (!teacher.current) return;
-    speak(text, teacher.current, { onStart: () => music.current?.duck(true), onEnd: () => music.current?.duck(false) });
+    speak(text, teacher.current, { interrupt, onStart: () => music.current?.duck(true), onEnd: () => music.current?.duck(false) });
+  };
+
+  const finish = (early: boolean) => {
+    const pos = Math.min(now(), session.totalSeconds);
+    clock.current = { base: pos, t0: performance.now(), paused: true };
+    if (early) {
+      stopSpeaking();
+      music.current?.pause(true);
+    } else {
+      music.current?.fadeOut(5);
+      if (session.discipline === 'meditation') music.current?.bell('soft');
+    }
+    setFinished({ active: [...active.current], early });
   };
 
   // main loop
   useEffect(() => {
+    if (!ready || finished) return;
     let raf = 0;
     let lastUi = 0;
     let lastTv = 0;
     const tick = () => {
       const e = now();
-      if (e >= session.totalSeconds) {
-        setFinished(session.totalSeconds);
-        return;
-      }
+      if (e >= session.totalSeconds) return finish(false);
       const i = indexAt(offs, e);
       const seg = session.segments[i];
       const se = e - offs[i];
+      const nowMs = performance.now();
+      if (!clock.current.paused && lastFrame.current) active.current[i] += Math.min(0.5, (nowMs - lastFrame.current) / 1000);
+      lastFrame.current = nowMs;
       // cues
       seg.cues.forEach((c, k) => {
         const key = `${i}:${k}`;
         if (c.at <= se && !fired.current.has(key)) {
           fired.current.add(key);
-          if (se - c.at < 2) say(c.text);
+          if (se - c.at < 2) say(c.text, k === 0 && c.at < 0.5);
         }
       });
       // bells
@@ -93,7 +131,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
         if (n !== lastBell.current && n > 0) music.current?.bell('soft');
         lastBell.current = n;
       }
-      // spoken breath pattern (first cycles only)
+      // spoken breath pattern (first cycles only, then on-screen only)
       if (seg.kind === 'breath' && seg.pattern) {
         const cyc = seg.pattern.reduce((a, b) => a + b, 0);
         const inCycle = se % cyc;
@@ -106,9 +144,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
         const id = Math.floor(se / cyc) * 4 + p;
         if (id !== breathPhase.current && seg.pattern[p] > 0) {
           breathPhase.current = id;
-          const w = breathWords(session.lang)[p];
-          if (se < cyc * 4) say(w);
-          else setSubtitle(w);
+          if (se < cyc * 4) say(breathWords(session.lang)[p], true);
         }
       }
       music.current?.setIntensity(seg.intensity);
@@ -118,6 +154,10 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
         lastUi = ts;
         setIdx(i);
         setElapsed(e);
+        if (subtitleUntil.current && ts > subtitleUntil.current && !isSpeaking()) {
+          subtitleUntil.current = 0;
+          setSubtitle('');
+        }
       }
       if (ts - lastTv > 500) {
         lastTv = ts;
@@ -128,16 +168,16 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, offs, finished]);
+  }, [session, offs, ready, finished]);
 
   // segment start bells for HIIT
   const prevIdx = useRef(-1);
   useEffect(() => {
-    if (idx === prevIdx.current) return;
+    if (idx === prevIdx.current || !ready) return;
     prevIdx.current = idx;
     if (session.discipline === 'hiit') music.current?.bell(session.segments[idx].kind === 'rest' ? 'soft' : 'high');
     if (session.segments[idx].kind === 'breath') breathPhase.current = -1;
-  }, [idx, session]);
+  }, [idx, session, ready]);
 
   // share full session with TV receivers periodically (so late-joining TVs get it)
   useEffect(() => {
@@ -151,6 +191,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
   }, [session, subtitle]);
 
   const togglePause = () => {
+    if (!ready) return;
     const c = clock.current;
     if (c.paused) {
       c.t0 = performance.now();
@@ -165,18 +206,17 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
   };
 
   const seek = (i: number) => {
-    const target = Math.max(0, Math.min(session.segments.length - 1, i));
+    if (!ready) return;
+    if (i >= session.segments.length) return finish(true);
+    const target = Math.max(0, i);
     stopSpeaking();
+    setSubtitle('');
     clock.current.base = offs[target];
     clock.current.t0 = performance.now();
     for (const k of [...fired.current]) if (Number(k.split(':')[0]) >= target) fired.current.delete(k);
+    lastBell.current = -1;
     setIdx(target);
-  };
-
-  const end = () => {
-    stopSpeaking();
-    music.current?.pause(true);
-    setFinished(now());
+    setElapsed(offs[target]);
   };
 
   const toggleFs = () => {
@@ -184,25 +224,44 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
     else rootRef.current?.requestFullscreen?.().catch(() => {});
   };
 
-  if (finished !== null)
-    return <Summary session={session} practised={finished} startedAt={startedAt.current} onDone={onExit} />;
+  // keyboard: space = pause, ← → = previous / next, f = fullscreen, esc handled by browser
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e: KeyboardEvent) => {
+    if (finished || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePause();
+    } else if (e.key === 'ArrowRight') seek(idx + 1);
+    else if (e.key === 'ArrowLeft') seek(idx - 1);
+    else if (e.key === 'f') toggleFs();
+  };
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => keyRef.current(e);
+    addEventListener('keydown', h);
+    return () => removeEventListener('keydown', h);
+  }, []);
+
+  if (finished)
+    return <Summary session={session} active={finished.active} early={finished.early} startedAt={startedAt.current} onDone={onExit} />;
 
   const seg = session.segments[idx];
-  const move = getMove(seg.moveId);
-  const nextSeg = session.segments.slice(idx + 1).find((s) => s.moveId && s.moveId !== seg.moveId);
+  const isRest = seg.kind === 'rest';
+  // a rest segment carries the id of the *next* exercise
+  const move = isRest ? undefined : getMove(seg.moveId);
+  const nextSeg = isRest ? seg : session.segments.slice(idx + 1).find((s) => s.moveId && s.moveId !== seg.moveId);
   const nextMove = getMove(nextSeg?.moveId);
   const segLeft = Math.max(0, offs[idx] + seg.duration - elapsed);
   const clip = clipFor(seg.moveId, seg.side);
   const pref = move ? (likes.includes(move.id) ? 'like' : dislikes.includes(move.id) ? 'dislike' : null) : null;
-  const audioOnly = session.audioOnly || !move;
+  const audioOnly = session.audioOnly || (!move && !isRest);
 
   return (
     <div className="player" ref={rootRef}>
       <div className="player-top">
-        <button className="ghost" onClick={end} aria-label={t('end')}>✕</button>
+        <button className="ghost" onClick={() => (ready ? finish(true) : onExit())} aria-label={t('end')}>✕</button>
         <div className="player-title">
           <span className="phase">{phaseLabel(seg.phase, lang) || variantLabel(session.discipline, session.variant, lang)}</span>
-          <strong>{seg.kind === 'breath' || seg.phase === 'timer' ? variantLabel('meditation', session.variant, lang) : seg.title}</strong>
+          <strong>{seg.kind === 'breath' || seg.phase === 'timer' ? variantLabel('meditation', session.variant, lang) : isRest && nextMove ? `${t('upNext')}: ${moveName(nextMove, { lang, sanskrit: false })}` : seg.title}</strong>
         </div>
         <button className="ghost" onClick={async () => { const r = await startCast(); if (r === 'window') alert(t('castHelp')); }} title={t('cast')}>📺</button>
         <button className="ghost" onClick={toggleFs} title={t('fullscreen')}>⛶</button>
@@ -218,11 +277,14 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
         )}
         {seg.kind === 'rest' && <div className="rest-badge">{t('rest')} · {Math.ceil(segLeft)}</div>}
         {showSubs && subtitle && <div className="subtitle">{subtitle}</div>}
+        {!ready && <div className="loading-badge">…</div>}
+        {paused && <button className="paused-overlay" onClick={togglePause} aria-label={t('resume')}>▶</button>}
       </div>
 
       <div className="player-info">
         <div className="seg-timer">{fmt(segLeft)}</div>
         <div className="names">
+          {isRest && <div className="move-name">{t('rest')}</div>}
           {move && <div className="move-name">{moveName(move, { lang, sanskrit: false })}{seg.side ? ` · ${seg.side === 'right' ? '→' : '←'}` : ''}</div>}
           {move?.sanskrit && <div className="sanskrit">{move.sanskrit}</div>}
           {nextMove && <div className="next">{t('upNext')}: {moveName(nextMove, { lang, sanskrit: false })}</div>}
@@ -277,24 +339,27 @@ function AudioVisual({ session, idx, se }: { session: Session; idx: number; se: 
   );
 }
 
-function Summary({ session, practised, startedAt, onDone }: { session: Session; practised: number; startedAt: Date; onDone: () => void }) {
+function Summary({ session, active, early, startedAt, onDone }: { session: Session; active: number[]; early: boolean; startedAt: Date; onDone: () => void }) {
   const t = useT();
   const lang = useLang();
   const weight = useStore((s) => s.weightKg);
   const likes = useStore((s) => s.likes);
   const dislikes = useStore((s) => s.dislikes);
   const [notes, setNotes] = useState('');
-  const kcal = estimateCalories(session, practised, weight);
-  const minutes = Math.max(1, Math.round(practised / 60));
-  const moves = [...new Set(session.segments.map((s) => s.moveId).filter(Boolean) as string[])]
+  const practised = active.reduce((a, x) => a + x, 0);
+  const kcal = estimateCalories(session, active, weight);
+  const minutes = Math.round((practised / 60) * 10) / 10;
+  // only what was actually practised
+  const done = session.segments.filter((s, i) => active[i] > 3 && s.kind !== 'rest');
+  const moves = [...new Set(done.map((s) => s.moveId).filter(Boolean) as string[])]
     .map(getMove)
     .filter((m) => m && m.id !== 'savasana') as NonNullable<ReturnType<typeof getMove>>[];
 
   const save = async () => {
-    const end = new Date();
+    const end = new Date(startedAt.getTime() + practised * 1000);
     setState((s) => ({
       history: [
-        { id: session.id, date: startedAt.toISOString(), discipline: session.discipline, variant: session.variant, minutes, kcal, notes },
+        { id: session.id, date: startedAt.toISOString(), discipline: session.discipline, variant: session.variant, minutes: Math.max(1, Math.round(minutes)), kcal, notes },
         ...s.history.filter((h) => h.id !== session.id),
       ],
     }));
@@ -304,9 +369,9 @@ function Summary({ session, practised, startedAt, onDone }: { session: Session; 
 
   return (
     <div className="summary">
-      <h1>{t('complete')} 🌿</h1>
+      <h1>{early ? t('sessionEnded') : `${t('complete')} 🌿`}</h1>
       <div className="stats">
-        <div><strong>{minutes}</strong><span>{t('minutes')}</span></div>
+        <div><strong>{minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)}</strong><span>{t('minutes')}</span></div>
         <div><strong>{kcal}</strong><span>{t('calories')}</span></div>
         {moves.length > 0 && <div><strong>{moves.length}</strong><span>{t('poses')}</span></div>}
       </div>
@@ -331,7 +396,14 @@ function Summary({ session, practised, startedAt, onDone }: { session: Session; 
       )}
       <h3>{t('notes')}</h3>
       <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('notesPh')} rows={3} />
-      <button className="primary wide" onClick={save}>{t('saveJournal')}</button>
+      {practised >= 30 ? (
+        <>
+          <button className="primary wide" onClick={save}>{t('saveJournal')}</button>
+          <button className="ghost wide discard" onClick={onDone}>{t('discard')}</button>
+        </>
+      ) : (
+        <button className="primary wide" onClick={onDone}>{t('discard')}</button>
+      )}
     </div>
   );
 }

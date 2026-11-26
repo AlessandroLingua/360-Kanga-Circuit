@@ -32,12 +32,14 @@ export function AudioSettings({
       <Field label={t('teacher')}>
         <div className="teacher-row">
           <Select
-            value={String(audio.teacherIdx)}
+            value={String(teachers.length ? audio.teacherIdx % teachers.length : 0)}
             options={teachers.map((tc, i) => ({ value: String(i), label: tc.label }))}
             onChange={(v) => setAudio({ teacherIdx: +v })}
           />
-          <button className="ghost" onClick={() => teachers[audio.teacherIdx] && speak(t('tagline'), teachers[audio.teacherIdx])}>▶︎</button>
+          <button className="ghost" aria-label="▶" onClick={() => teachers[audio.teacherIdx % teachers.length] && speak(t('tagline'), teachers[audio.teacherIdx % teachers.length], { interrupt: true })}>▶︎</button>
         </div>
+        {teachers.length > 0 && teachers[0].voice === undefined && <div className="hint warn">{t('noVoice')}</div>}
+        {teachers.length > 0 && teachers[0].voice !== undefined && (teachers[0].lowQuality || new Set(teachers.map((x) => x.voice)).size < 2) && <div className="hint">{t('voiceHint')}</div>}
       </Field>
       {instruction && onInstruction && (
         <Field label={t('instruction')}>

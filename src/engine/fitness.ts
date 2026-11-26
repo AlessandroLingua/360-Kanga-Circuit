@@ -141,21 +141,21 @@ export function generateFitness(cfg: FitnessConfig, seed: number): Session {
   if (cfg.discipline === 'hiit') {
     const perRound = cfg.level >= 3 ? 5 : 4;
     const target = 3 + cfg.level * 0.4;
-    let round = 1;
-    while (total() - mainStart < mainBudget - (cfg.workSec + cfg.restSec)) {
-      const circuit: Move[] = [];
-      for (let i = 0; i < perRound; i++) {
+    // plan all work blocks first, so every rest can announce what comes next
+    const plan: { m: Move; round: number; first: boolean }[] = [];
+    let t = 0;
+    for (let round = 1; round <= 30 && t < mainBudget - (cfg.workSec + cfg.restSec); round++) {
+      for (let i = 0; i < perRound && t < mainBudget - cfg.workSec; i++) {
         const m = pick(lib, target);
-        if (m) circuit.push(m);
+        if (!m) break;
+        plan.push({ m, round, first: i === 0 });
+        t += cfg.workSec + cfg.restSec;
       }
-      for (let i = 0; i < circuit.length; i++) {
-        if (total() - mainStart > mainBudget - cfg.workSec) break;
-        push(circuit[i], cfg.workSec, `round${round}`, undefined, i === 0 ? `${ph('round', L)} ${round}. ${ph('go', L)}` : ph('go', L));
-        rest(cfg.restSec, circuit[i + 1]);
-      }
-      round++;
-      if (round > 30) break;
     }
+    plan.forEach((p, k) => {
+      push(p.m, cfg.workSec, `round${p.round}`, undefined, p.first ? `${ph('round', L)} ${p.round}. ${ph('go', L)}` : ph('go', L));
+      rest(cfg.restSec, plan[k + 1]?.m);
+    });
   } else {
     const target = 2.2 + cfg.level * 0.4;
     while (total() - mainStart < mainBudget - 30) {
@@ -193,6 +193,10 @@ export function generateFitness(cfg: FitnessConfig, seed: number): Session {
       s.duration = nd;
     }
   }
+  // absorb the remainder in the final stretch so the session lasts exactly what was asked
+  const tail = [...segs].reverse().find((x) => x.kind === 'move');
+  const drift = T - total();
+  if (tail && tail.duration + drift >= 10 && Math.abs(drift) < 120) tail.duration += drift;
   const last = segs[segs.length - 1];
   last?.cues.push({ at: Math.max(0, last.duration - 5), text: ph('wellDone', L) });
 

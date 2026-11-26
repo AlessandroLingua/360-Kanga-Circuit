@@ -221,7 +221,10 @@ function fillPhase(b: Builder, phase: Phase, budget: number, positions: Position
   let t = 0;
   let guard = 0;
   while (t < budget * 0.92 && guard++ < 60) {
-    const m = b.pick(p, target);
+    // each pose at most once per phase while there are alternatives left
+    // pool exhausted: stop here, the remaining time is given to longer holds
+    const fresh = p.filter((x) => !picks.includes(x));
+    const m = b.pick(fresh, target);
     if (!m) break;
     const d = b.holdSeconds(m, phase) * (m.bilateral ? 2 : 1);
     if (t + d > budget * 1.25 && picks.length > 0) break;
@@ -244,7 +247,8 @@ function standingPhase(b: Builder, budget: number) {
       const n = b.rng.int(2, 3);
       const block: Move[] = [];
       for (let i = 0; i < n; i++) {
-        const m = b.pick(standingPool.filter((x) => x.bilateral), 3.3 + b.cfg.level * 0.2);
+        const fresh = standingPool.filter((x) => x.bilateral && !b.used.has(x.id) && !block.includes(x));
+        const m = b.pick(fresh.length ? fresh : standingPool.filter((x) => x.bilateral && !block.includes(x)), 3.3 + b.cfg.level * 0.2);
         if (m) block.push(m);
       }
       if (!block.length) break;
@@ -263,7 +267,7 @@ function standingPhase(b: Builder, budget: number) {
       const solo = b.pick(standingPool.filter((x) => !x.bilateral), 3.5);
       if (solo && b.rng.chance(0.5)) b.addHeld(solo, 'standing');
     } else {
-      const m = b.pick(standingPool, st === 'gentle' ? 2.6 : 3.3);
+      const m = b.pick(standingPool.filter((x) => !b.used.has(x.id)), st === 'gentle' ? 2.6 : 3.3);
       if (!m) break;
       b.addHeld(m, 'standing');
       if (st === 'hatha' && b.rng.chance(0.4)) b.flowStep('tadasana', 'standing', 2);
@@ -350,7 +354,7 @@ export function generateYoga(cfg: YogaConfig, seed: number): Session {
     if (b.style === 'ashtanga') ashtangaFloor(b, budget('floor'));
     else if (b.style === 'yin' || b.style === 'restorative')
       fillPhase(b, 'floor', budget('floor'), ['kneeling', 'prone', 'seated', 'supine'], 0, 2, 1);
-    else fillPhase(b, 'floor', budget('floor'), ['kneeling', 'prone', 'seated', 'supine', 'inverted', 'armBalance'], 1.5, 5, 2.4 + cfg.level * 0.3);
+    else fillPhase(b, 'floor', budget('floor'), ['kneeling', 'prone', 'seated', 'supine', 'inverted', 'armBalance'], b.style === 'gentle' ? 1 : 1.5, 5, 2.4 + cfg.level * 0.3);
   }
 
   // cool-down
@@ -371,6 +375,18 @@ export function generateYoga(cfg: YogaConfig, seed: number): Session {
   const factor = flex > 0 ? Math.max(0.4, (body - fixed) / flex) : 1;
   for (const d of b.drafts) if (d.flex) d.dur = Math.max(b.breath * 2, d.dur * factor);
 
+  // merge consecutive identical poses (e.g. down dog ending a link + down dog starting a flow)
+  for (let i = b.drafts.length - 1; i > 0; i--) {
+    const a = b.drafts[i - 1],
+      c = b.drafts[i];
+    if (a.move.id === c.move.id && a.side === c.side) {
+      a.dur += c.dur;
+      a.flow = false;
+      a.pre = a.pre ?? c.pre;
+      b.drafts.splice(i, 1);
+    }
+  }
+
   // finalize segments
   const opts = { lang: L, instruction: cfg.instruction, sanskrit: cfg.sanskrit, breathSec: b.breath };
   const segments: Segment[] = b.drafts.map((d) => {
@@ -389,6 +405,11 @@ export function generateYoga(cfg: YogaConfig, seed: number): Session {
       repSeconds: d.move.frames.length > 1 ? b.breath * 2 : undefined,
     };
   });
+
+  // absorb rounding so the session lasts exactly what was asked
+  const drift = body - segments.reduce((a, x) => a + x.duration, 0);
+  const lastHold = [...segments].reverse().find((x) => x.duration > 15);
+  if (lastHold && Math.abs(drift) < lastHold.duration / 2) lastHold.duration = Math.round((lastHold.duration + drift) * 10) / 10;
 
   if (sav >= 10) {
     segments.push({

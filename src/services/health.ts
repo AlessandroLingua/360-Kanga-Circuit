@@ -42,17 +42,15 @@ export async function logToHealth(s: Session, start: Date, end: Date, kcal: numb
   }
 }
 
-/** kcal ≈ Σ MET × kg × hours, over the seconds actually practised. */
-export function estimateCalories(s: Session, practisedSec: number, weightKg: number) {
-  let t = 0;
+/** kcal ≈ Σ MET × kg × hours, using the seconds actually practised in each segment. */
+export function estimateCalories(s: Session, secondsBySeg: number[], weightKg: number) {
   let kcal = 0;
-  for (const seg of s.segments) {
-    if (t >= practisedSec) break;
-    const d = Math.min(seg.duration, practisedSec - t);
+  s.segments.forEach((seg, i) => {
+    const d = secondsBySeg[i] ?? 0;
+    if (!d) return;
     const m = seg.moveId ? (YOGA_BY_ID[seg.moveId] ?? FITNESS_BY_ID[seg.moveId]) : undefined;
     const met = seg.kind === 'rest' ? 3 : (m?.met ?? 1.3);
     kcal += met * weightKg * (d / 3600);
-    t += seg.duration;
-  }
+  });
   return Math.round(kcal);
 }

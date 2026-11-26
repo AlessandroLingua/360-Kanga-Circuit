@@ -4,6 +4,8 @@ import { LangCtx, translate } from './i18n';
 import { loadClipManifest } from './services/clips';
 import { syncNow } from './services/sync';
 import { useStore } from './store/store';
+import { unlockAudio } from './audio/music';
+import { unlockSpeech } from './audio/voice';
 import { FitnessSetup } from './screens/FitnessSetup';
 import { Home, type Route } from './screens/Home';
 import { MeditationSetup } from './screens/MeditationSetup';
@@ -36,6 +38,11 @@ export function App() {
   const [route, setRoute] = useState<Route | 'tv' | 'gallery'>(routeFromHash);
   const [session, setSessionRaw] = useState<Session | null>(null);
   const setSession = (s: Session | null) => {
+    // runs inside the Start tap: unlock sound and speech for iOS/Safari
+    if (s) {
+      unlockAudio();
+      unlockSpeech();
+    }
     window.scrollTo(0, 0);
     setSessionRaw(s);
   };
@@ -81,7 +88,12 @@ export function App() {
           ))}
         </nav>
         <main>
-          {route !== 'home' && <h1 className="page-title">{t(route)}</h1>}
+          {route !== 'home' && (
+            <h1 className="page-title">
+              {!NAV.find((n) => n.r === route)?.mobile && <button className="back" onClick={() => go('home')} aria-label={t('home')}>‹</button>}
+              {t(route)}
+            </h1>
+          )}
           {route === 'home' && <Home go={go} />}
           {route === 'yoga' && <YogaSetup onStart={setSession} />}
           {route === 'pilates' && <FitnessSetup key="pilates" discipline="pilates" onStart={setSession} />}

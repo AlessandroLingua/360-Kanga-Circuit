@@ -16,6 +16,26 @@ const PROGRESSIONS = [
 ];
 const PENTA = [62, 64, 65, 69, 72, 74, 76, 77, 81];
 
+let sharedCtx: AudioContext | null = null;
+/** One AudioContext for the whole app (browsers limit how many can exist). */
+export function getAudioContext() {
+  if (!sharedCtx || sharedCtx.state === 'closed') {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedCtx = new AC();
+  }
+  return sharedCtx;
+}
+/** Call synchronously from the Start tap so iOS/Safari allow sound. */
+export function unlockAudio() {
+  const ctx = getAudioContext();
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  // a silent one-sample buffer fully unlocks WebKit
+  const b = ctx.createBufferSource();
+  b.buffer = ctx.createBuffer(1, 1, 22050);
+  b.connect(ctx.destination);
+  b.start(0);
+}
+
 export class MusicEngine {
   ctx: AudioContext;
   master: GainNode;
@@ -38,8 +58,7 @@ export class MusicEngine {
   paused = false;
 
   constructor() {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AC();
+    this.ctx = getAudioContext();
     this.master = this.ctx.createGain();
     this.master.gain.value = this.volume;
     this.duckGain = this.ctx.createGain();
@@ -110,6 +129,21 @@ export class MusicEngine {
     }
     this.localUrls.forEach((u) => URL.revokeObjectURL(u));
     this.localUrls = [];
+  }
+
+  /** Release this engine's nodes (the shared context stays alive). */
+  dispose() {
+    this.stop();
+    this.master.disconnect();
+  }
+
+  /** Gentle fade at the natural end of a session. */
+  fadeOut(sec = 4) {
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.linearRampToValueAtTime(0.0001, t + sec);
+    setTimeout(() => this.stop(), sec * 1000 + 100);
   }
 
   async pause(p: boolean) {

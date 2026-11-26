@@ -191,7 +191,7 @@ export function generateMeditation(cfg: MeditationConfig, seed: number): Session
     const intro = Math.min(20, T * 0.1);
     const outro = Math.min(20, T * 0.1);
     segs.push(seg(L === 'it' ? 'Introduzione' : 'Intro', 'intro', intro, [{ at: 0.5, text: MED.breath.intro[0][L] }]));
-    segs.push({ kind: 'breath', title: cfg.pattern, phase: 'breath', duration: Math.round(T - intro - outro), intensity: 0.1, cues: [], pattern: pat });
+    segs.push({ kind: 'breath', title: L === 'it' ? 'Respirazione guidata' : 'Guided breathing', phase: 'breath', duration: Math.round(T - intro - outro), intensity: 0.1, cues: [], pattern: pat });
     segs.push(seg(L === 'it' ? 'Chiusura' : 'Close', 'close', outro, [{ at: 0.5, text: MED.breath.close[0][L] }]));
   } else {
     const bank = MED[cfg.goal];

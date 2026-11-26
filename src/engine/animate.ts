@@ -8,8 +8,9 @@ export const getMove = (id?: string): Move | undefined => (id ? (YOGA_BY_ID[id] 
 const STAND: Figure = [180, 180, 2, 0, -2, 0, 0, 0, 0, 0];
 
 function frames(seg: Segment): Figure[] | null {
-  if (seg.kind === 'rest') return [STAND, [180, 180, 8, 0, -8, 0, 0, 0, 0, 0]];
   const m = getMove(seg.moveId);
+  // during a rest we demo the upcoming exercise (rest segments carry the next move's id)
+  if (seg.kind === 'rest' && !m) return [STAND, [180, 180, 8, 0, -8, 0, 0, 0, 0, 0]];
   if (!m) return null;
   return m.frames.map((f) => (seg.side === 'left' ? swapSides(f) : f));
 }
@@ -27,7 +28,7 @@ export function figureAt(session: Session, idx: number, segElapsed: number): { f
   if (!seg) return null;
   const fr = frames(seg);
   if (!fr) return null;
-  const period = seg.kind === 'rest' ? 6 : (seg.repSeconds ?? 4);
+  const period = seg.kind === 'rest' ? Math.max(3, fr.length * 1.5) : (seg.repSeconds ?? 4);
   const target = loop(fr, segElapsed, period);
   const breath = (Math.sin((2 * Math.PI * segElapsed) / 9) + 1) / 2;
   // transition from previous pose

@@ -9,6 +9,7 @@ export function Home({ go }: { go: (r: Route) => void }) {
   const lang = useLang();
   const history = useStore((s) => s.history);
   const goals = useStore((s) => s.goals);
+  const downloads = useStore((s) => s.downloads.length);
   const st = streaks(history);
   const ps = periodStats(history);
   const days = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(lang, { weekday: 'narrow' }));
@@ -55,6 +56,13 @@ export function Home({ go }: { go: (r: Route) => void }) {
           </button>
         ))}
       </div>
+      <Card className="home-offline">
+        <div>
+          <strong>⤓ {t('downloads')}</strong>
+          <div className="hint">{downloads ? `${downloads}` : t('offlineReady')}</div>
+        </div>
+        <button className="secondary" onClick={() => go('offline')}>{t('offline')} ›</button>
+      </Card>
     </div>
   );
 }
