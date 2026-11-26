@@ -143,9 +143,9 @@ export function moveGroups(mv: Move): MixValues {
 
 export function allowed(mv: Move, c: Constraints | undefined) {
   if (!c) return true;
-  if (c.noJump && JUMPS.has(mv.id)) return false;
-  if (c.noKnee && (KNEE.has(mv.id) || mv.position === 'kneeling')) return false;
-  if (c.noWrist && (WRIST.has(mv.id) || mv.position === 'armBalance')) return false;
+  if (c.noJump && (JUMPS.has(mv.id) || mv.tags?.includes('jump'))) return false;
+  if (c.noKnee && (KNEE.has(mv.id) || mv.tags?.includes('knee') || mv.position === 'kneeling')) return false;
+  if (c.noWrist && (WRIST.has(mv.id) || mv.tags?.includes('wrist') || mv.position === 'armBalance')) return false;
   if (c.standingOnly && mv.position !== 'standing') return false;
   if (c.noStanding && mv.position === 'standing') return false;
   return true;

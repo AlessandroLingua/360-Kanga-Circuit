@@ -62,6 +62,7 @@ export type MusicGenre =
   | 'local';
 
 export type Position = 'standing' | 'kneeling' | 'seated' | 'prone' | 'supine' | 'inverted' | 'armBalance';
+export type MoveTag = 'jump' | 'knee' | 'wrist';
 
 export interface Move {
   id: string;
@@ -81,6 +82,8 @@ export interface Move {
   bilateral?: boolean;
   /** Keyframes. One = static hold; two or more = looping movement (reps). */
   frames: Figure[];
+  /** Load flags used by the Mix filters (no jumping / knee- / wrist-friendly). */
+  tags?: MoveTag[];
   /** Styles in which this pose is appropriate (yoga only). */
   styles?: YogaStyle[];
   /** Estimated MET for calorie calculations. */

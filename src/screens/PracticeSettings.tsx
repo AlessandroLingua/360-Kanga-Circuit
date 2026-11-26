@@ -153,6 +153,7 @@ function HiitBody({ type, cfg, set, audio, setAudio }: AudioProps & { type: stri
         </Panel>
       ))}
       <VoicePanel audio={audio} setAudio={setAudio} />
+      <ModelPanel />
       {st !== 'stretch' && (
         <>
           <Panel icon="flame" title={t('warmup')} sub={t('warmupNote')}>
@@ -201,6 +202,7 @@ function MatBody({ kind, cfg, set, audio, setAudio }: AudioProps & { kind: 'yoga
         <Choices value={cfg.level} options={([1, 2, 3, 4, 5] as const).map((v) => ({ v, label: t(`level${v}`) }))} onChange={(v) => set({ level: v })} />
       </Panel>
       <VoicePanel audio={audio} setAudio={setAudio} />
+      <ModelPanel />
       <MusicPanel audio={audio} setAudio={setAudio} />
       <Panel icon="list" title={t('instructions')} sub={t('explanationSub')} action={ins.pill}>
         {ins.body}
@@ -363,3 +365,14 @@ function PreviewSheet({ onClose, onStart }: { onClose: () => void; onStart: (s: 
   );
 }
 
+
+// ───────── instructor model (drawn figure): saved immediately ─────────
+function ModelPanel() {
+  const t = useT();
+  const model = useStore((s) => s.figure ?? 'female');
+  return (
+    <Panel icon="user" title={t('figureModel')} sub={t('figureModelSub')}>
+      <Choices value={model} options={[{ v: 'female', label: t('female') }, { v: 'male', label: t('male') }]} onChange={(v) => setState({ figure: v })} cols={2} />
+    </Panel>
+  );
+}

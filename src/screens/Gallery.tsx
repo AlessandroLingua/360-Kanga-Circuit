@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getState } from '../store/store';
 import { drawFigure } from '../engine/figure';
 import { HIIT, PILATES } from '../engine/library/fitness';
 import { YOGA } from '../engine/library/yoga';
@@ -24,7 +25,7 @@ function Thumb({ m, label }: { m: Move; label: string }) {
     const c = ref.current!;
     const ctx = c.getContext('2d')!;
     const cs = getComputedStyle(c);
-    const theme = { body: cs.getPropertyValue('--fig-body'), far: cs.getPropertyValue('--fig-far'), floor: cs.getPropertyValue('--line'), accent: cs.getPropertyValue('--accent') };
+    const theme = { body: cs.getPropertyValue('--fig-body'), far: cs.getPropertyValue('--fig-far'), floor: cs.getPropertyValue('--line'), accent: cs.getPropertyValue('--accent'), model: getState().figure };
     c.width = 320;
     c.height = 240;
     ctx.scale(2, 2);

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { getMove } from '../engine/animate';
 import { drawFigure } from '../engine/figure';
 import { useT } from '../i18n';
+import { useStore } from '../store/store';
 
 // ───────── icons (stroke icons, inherit currentColor) ─────────
 const P = {
@@ -97,6 +98,7 @@ export function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boo
 // ───────── static figure thumbnail ─────────
 export function MoveThumb({ moveId, className }: { moveId: string; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const model = useStore((s) => s.figure);
   useEffect(() => {
     const c = ref.current;
     const mv = getMove(moveId);
@@ -113,13 +115,22 @@ export function MoveThumb({ moveId, className }: { moveId: string; className?: s
       const cs = getComputedStyle(c);
       const v = (n: string, d: string) => cs.getPropertyValue(n).trim() || d;
       const frame = mv.frames[mv.frames.length > 1 ? 1 : 0];
-      drawFigure(ctx, frame, w, h, { body: v('--fig-body', '#fff'), far: v('--fig-far', '#888'), floor: v('--fig-floor', '#444'), accent: v('--accent', '#4aa3ff') });
+      drawFigure(ctx, frame, w, h, { body: v('--fig-body', '#fff'), far: v('--fig-far', '#888'), floor: v('--fig-floor', '#444'), accent: v('--accent', '#4aa3ff'), model });
     };
-    draw();
-    const ro = new ResizeObserver(draw);
+    // long lists (hundreds of exercises): draw only once the thumbnail scrolls into view
+    let visible = false;
+    const io = new IntersectionObserver((entries) => {
+      visible = entries.some((e) => e.isIntersecting);
+      if (visible) draw();
+    }, { rootMargin: '200px' });
+    io.observe(c);
+    const ro = new ResizeObserver(() => visible && draw());
     ro.observe(c);
-    return () => ro.disconnect();
-  }, [moveId]);
+    return () => {
+      io.disconnect();
+      ro.disconnect();
+    };
+  }, [moveId, model]);
   return <canvas ref={ref} className={className ?? 'thumb'} aria-hidden />;
 }
 

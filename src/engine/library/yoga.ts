@@ -1,3 +1,5 @@
+import { translateCues } from '../../i18n/catalog';
+import { buildYogaCatalog } from './yogaCatalog';
 import type { L10n, Move, YogaStyle } from '../types';
 
 const n = (en: string, it: string, es: string, fr: string, de: string, pt: string): L10n => ({ en, it, es, fr, de, pt });
@@ -10,7 +12,7 @@ const FLOOR_SOFT: YogaStyle[] = ['hatha', 'gentle', 'vinyasa', 'yin', 'restorati
 type P = Omit<Move, 'discipline' | 'met'> & { met?: number };
 const y = (p: P): Move => ({ discipline: 'yoga', met: p.met ?? 2 + p.intensity * 0.6, ...p });
 
-export const YOGA: Move[] = [
+const YOGA_CORE: Move[] = [
   // ───────────── standing ─────────────
   y({
     id: 'tadasana', sanskrit: 'Tadasana', position: 'standing', level: 1, intensity: 1,
@@ -476,5 +478,8 @@ export const YOGA: Move[] = [
     met: 1.3,
   }),
 ];
+
+/** Core poses plus the extended catalog (figures borrowed from core poses). */
+export const YOGA: Move[] = translateCues([...YOGA_CORE, ...buildYogaCatalog(YOGA_CORE)]);
 
 export const YOGA_BY_ID: Record<string, Move> = Object.fromEntries(YOGA.map((m) => [m.id, m]));

@@ -316,6 +316,10 @@ export const STRINGS = {
   dislikedFem: ['Non piaciute', 'Disliked', 'No me gustan', 'Non aimées', 'Unbeliebt', 'Não curtidas'],
   continue: ['Continua', 'Continue', 'Continuar', 'Continuer', 'Weiter', 'Continuar'],
   searchExercise: ['Cerca un esercizio', 'Search exercises', 'Buscar ejercicio', 'Rechercher un exercice', 'Übung suchen', 'Buscar exercício'],
+  figureModel: ['Modello/a', 'Instructor model', 'Modelo', 'Modèle', 'Modell', 'Modelo'],
+  figureModelSub: ['Chi ti mostra gli esercizi', 'Who demonstrates the exercises', 'Quién te muestra los ejercicios', 'Qui te montre les exercices', 'Wer dir die Übungen zeigt', 'Quem mostra os exercícios'],
+  female: ['Donna', 'Woman', 'Mujer', 'Femme', 'Frau', 'Mulher'],
+  male: ['Uomo', 'Man', 'Hombre', 'Homme', 'Mann', 'Homem'],
   period: ['Periodo', 'Period', 'Periodo', 'Période', 'Zeitraum', 'Período'],
 } satisfies Record<string, Row>;
 

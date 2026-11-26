@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { addLocalTracks, getLocalTracks, removeLocalTrack, type LocalTrack } from '../audio/localLibrary';
-import { Card, Field, Select, Slider } from '../components/ui';
+import { Card, Field, Segmented, Select, Slider } from '../components/ui';
 import { getMove } from '../engine/animate';
 import { moveName } from '../engine/cues';
 import { LANGS, type Lang } from '../engine/types';
@@ -13,6 +13,7 @@ export function Settings() {
   const t = useT();
   const lang = useLang();
   const weight = useStore((s) => s.weightKg);
+  const figure = useStore((s) => s.figure ?? 'female');
   const health = useStore((s) => s.health);
   const sync = useStore((s) => s.sync);
   const likes = useStore((s) => s.likes);
@@ -36,6 +37,10 @@ export function Settings() {
 
   return (
     <div className="setup">
+      <Card title={t('figureModel')}>
+        <p className="hint">{t('figureModelSub')}</p>
+        <Segmented value={figure} onChange={(v) => setState({ figure: v })} options={[{ value: 'female' as const, label: t('female') }, { value: 'male' as const, label: t('male') }]} />
+      </Card>
       <Card title={t('language')}>
         <Select value={lang} onChange={changeLang} options={LANGS.map((l) => ({ value: l, label: LANG_NAMES[l] }))} />
         <Field label={t('weight')}>

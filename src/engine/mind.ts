@@ -1,10 +1,15 @@
 /**
  * Yoga Nidra and Meditation generators (audio-first sessions).
- * Long-form guidance scripts are written in Italian and English; other languages fall back to English.
+ * Long-form guidance scripts are written in Italian and English; other languages are translated from English (i18n/catalog/meditation).
  */
 import { Rng } from './rng';
 import { MED_THEMES, THEME_TEXT, type MedThemeChoice } from './themes';
 import type { Cue, Lang, Segment, Session } from './types';
+import { medText } from '../i18n/catalog/meditation';
+
+/** Scripts are authored in en/it; es/fr/de/pt are translated line by line from English. */
+const localize = (segs: Segment[], lang: Lang): Segment[] =>
+  lang === 'en' || lang === 'it' ? segs : segs.map((s) => ({ ...s, title: medText(s.title, lang), cues: s.cues.map((c) => ({ ...c, text: medText(c.text, lang) })) }));
 
 type Bi = { en: string; it: string };
 const pickLang = (lang: Lang): 'en' | 'it' => (lang === 'it' ? 'it' : 'en');
@@ -96,7 +101,7 @@ export function generateNidra(minutes: number, sleep: boolean, lang: Lang, seed:
     variant: 'nidra',
     title: 'nidra',
     lang,
-    segments: segs,
+    segments: localize(segs, lang),
     totalSeconds: segs.reduce((a, s) => a + s.duration, 0),
     audioOnly: true,
     config: { minutes, sleep },
@@ -187,7 +192,7 @@ const BREATH_WORDS: Record<'en' | 'it', string[]> = {
   en: ['Breathe in', 'Hold', 'Breathe out', 'Hold'],
   it: ['Inspira', 'Trattieni', 'Espira', 'Trattieni'],
 };
-export const breathWords = (lang: Lang) => BREATH_WORDS[pickLang(lang)];
+export const breathWords = (lang: Lang) => BREATH_WORDS[pickLang(lang)].map((w) => medText(w, lang));
 
 export function generateMeditation(cfg: MeditationConfig, seed: number): Session {
   const r = new Rng(seed);
@@ -243,7 +248,7 @@ export function generateMeditation(cfg: MeditationConfig, seed: number): Session
     variant: cfg.goal,
     title: cfg.goal,
     lang: cfg.lang,
-    segments: segs,
+    segments: localize(segs, cfg.lang),
     totalSeconds: segs.reduce((a, s) => a + s.duration, 0),
     audioOnly: true,
     config: cfg,

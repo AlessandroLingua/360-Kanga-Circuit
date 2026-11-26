@@ -3,6 +3,7 @@ import { DEFAULT_FITNESS, type FitnessConfig } from '../engine/fitness';
 import { DEFAULT_MEDITATION, type MeditationConfig } from '../engine/mind';
 import { DEFAULT_MIX, type Constraints, type MixValues, type PracticeType } from '../engine/practice';
 import type { MedThemeChoice } from '../engine/themes';
+import type { FigureModel } from '../engine/figure';
 import type { Discipline, Lang, MusicGenre, Session } from '../engine/types';
 import { DEFAULT_YOGA, type YogaConfig } from '../engine/yoga';
 import { detectLang } from '../i18n';
@@ -56,6 +57,8 @@ export interface AppState {
   challenge: { active: Challenge | null; past: Challenge[] };
   /** lastFired: reminder id → day key, so each reminder fires once a day */
   reminders: { enabled: boolean; items: Reminder[]; lastFired?: Record<string, string> };
+  /** Instructor drawn in the player and thumbnails. */
+  figure: FigureModel;
   updatedAt: number;
 }
 
@@ -82,6 +85,7 @@ const initial = (): AppState => {
     practice: { type: 'hiitAny', mixId: DEFAULT_MIX.id, mix: { ...DEFAULT_MIX.mix }, constraints: {}, boostsYoga: [], boostsPilates: [], medTheme: 'any' },
     challenge: { active: null, past: [] },
     reminders: { enabled: false, items: [{ id: 'r1', time: '09:00', days: [0, 1, 2, 3, 4, 5, 6] }] },
+    figure: 'female',
     updatedAt: Date.now(),
   };
 };

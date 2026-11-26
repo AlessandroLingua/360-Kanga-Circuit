@@ -1,3 +1,6 @@
+import { translateCues } from '../../i18n/catalog';
+import { buildPilatesCatalog } from './pilatesCatalog';
+import { buildHiitCatalog } from './hiitCatalog';
 import type { FocusArea, L10n, Move, Position } from '../types';
 
 const n = (en: string, it: string, es: string, fr: string, de: string, pt: string): L10n => ({ en, it, es, fr, de, pt });
@@ -22,7 +25,7 @@ const PLANK: number[] = [114, 110, 0, 0, 0, 0, -66, -66, -66, -66];
 const mk = (discipline: 'pilates' | 'hiit') => (d: Def): Move => ({ discipline, short: d.cue, ...d });
 
 const p = mk('pilates');
-export const PILATES: Move[] = [
+const PILATES_CORE: Move[] = [
   p({ id: 'hundred', position: 'supine', level: 1, intensity: 3, met: 3.5, focus: ['core'],
     name: n('The Hundred', 'Il Cento', 'El Cien', 'Le Cent', 'Die Hundert', 'O Cem'),
     cue: c('Head and shoulders lifted, legs long at an angle, pump the arms: inhale for five, exhale for five.', 'Testa e spalle sollevate, gambe lunghe inclinate, pompa con le braccia: inspira per cinque, espira per cinque.'),
@@ -97,8 +100,11 @@ export const PILATES: Move[] = [
     frames: [[105, 110, 0, 0, 0, 0, 0, -90, 0, -90], [100, 50, 0, 0, 0, 0, 0, -90, 0, -90, 14]] }),
 ];
 
+/** Core Pilates moves plus the extended catalog. */
+export const PILATES: Move[] = translateCues([...PILATES_CORE, ...buildPilatesCatalog(PILATES_CORE)]);
+
 const h = mk('hiit');
-export const HIIT: Move[] = [
+const HIIT_CORE: Move[] = [
   h({ id: 'jumpingJacks', position: 'standing', level: 1, intensity: 4, met: 8, focus: ['legStrength'],
     name: n('Jumping Jacks', 'Jumping jack', 'Saltos de tijera', 'Jumping jacks', 'Hampelmann', 'Polichinelos'),
     cue: c('Jump the feet wide as the arms sweep overhead, then back together. Land softly.', 'Salta aprendo i piedi mentre le braccia salgono, poi richiudi. Atterra morbido.'),
@@ -176,5 +182,9 @@ export const HIIT: Move[] = [
     cue: c('Lying face down, lift the arms, chest and legs together, hold briefly and lower.', 'A pancia in giù, solleva braccia, petto e gambe insieme, mantieni un attimo e scendi.'),
     frames: [[92, 95, 92, 92, 92, 92, -90, -90, -90, -90], [105, 110, 115, 115, 115, 115, -78, -78, -78, -78, -6]] }),
 ];
+
+const CORE_BY_ID: Record<string, Move> = Object.fromEntries([...PILATES, ...HIIT_CORE].map((m) => [m.id, m]));
+/** Core HIIT moves plus the extended catalog (figures borrowed from core / yoga moves). */
+export const HIIT: Move[] = translateCues([...HIIT_CORE, ...buildHiitCatalog((id) => CORE_BY_ID[id], HIIT_CORE.map((m) => m.name.en))]);
 
 export const FITNESS_BY_ID: Record<string, Move> = Object.fromEntries([...PILATES, ...HIIT].map((m) => [m.id, m]));

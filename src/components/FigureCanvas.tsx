@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getState } from '../store/store';
 import { drawFigure, type DrawTheme } from '../engine/figure';
 import type { Figure } from '../engine/types';
 
@@ -17,6 +18,7 @@ export function FigureCanvas({ frameRef, className }: { frameRef: React.RefObjec
         far: cs.getPropertyValue('--fig-far').trim() || '#9fb3a8',
         floor: cs.getPropertyValue('--line').trim() || '#3a4a44',
         accent: cs.getPropertyValue('--accent').trim() || '#e8b86b',
+        model: getState().figure,
       };
     };
     readTheme();
