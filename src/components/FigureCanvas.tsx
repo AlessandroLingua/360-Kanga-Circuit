@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { getState } from '../store/store';
-import { drawFigure, type DrawTheme } from '../engine/figure';
-import type { Figure } from '../engine/types';
+import type { DrawTheme } from '../engine/figure';
+import { drawAnyFigure } from '../engine/drawAny';
+import type { FigureFrame } from '../engine/animate';
 
 /** Canvas that redraws whenever `getFrame` changes output; driven by the parent's animation loop via `frameRef`. */
-export function FigureCanvas({ frameRef, className }: { frameRef: React.RefObject<{ fig: Figure; breath: number } | null>; className?: string }) {
+export function FigureCanvas({ frameRef, className, floorAt }: { frameRef: React.RefObject<FigureFrame | null>; className?: string; floorAt?: number }) {
+  const floorRef = useRef(floorAt);
+  floorRef.current = floorAt;
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current!;
@@ -34,7 +37,7 @@ export function FigureCanvas({ frameRef, className }: { frameRef: React.RefObjec
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const f = frameRef.current;
-      if (f && theme) drawFigure(ctx, f.fig, w, h, theme, f.breath);
+      if (f && theme) drawAnyFigure(ctx, f.fig, w, h, { ...theme, floorAt: floorRef.current }, f.breath, { yaw: f.yaw, orbit: f.orbit, elev: f.elev });
       else ctx.clearRect(0, 0, w, h);
       raf = requestAnimationFrame(draw);
     };

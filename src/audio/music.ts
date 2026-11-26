@@ -3,8 +3,13 @@
  * Nothing is pre-recorded: each genre is synthesised live and reacts to the
  * intensity of the current phase (tempo, brightness, density, volume).
  */
-import type { MusicGenre } from '../engine/types';
+import type { Discipline, MusicGenre } from '../engine/types';
 import { getLocalTracks } from './localLibrary';
+import { playlist, trackUrl, type Track } from './library';
+
+/** Synth used when a recorded genre has no tracks available (offline before first download). */
+const SYNTH_FALLBACK: Partial<Record<MusicGenre, MusicGenre>> = { electronic: 'altBeats', hipHop: 'altBeats', rock: 'altBeats', lofi: 'pianoStrings' };
+const CROSSFADE = 4;
 
 const midi = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -55,6 +60,10 @@ export class MusicEngine {
   private audioEl: HTMLAudioElement | null = null;
   private localUrls: string[] = [];
   private volume = 0.6;
+  /** Bumped on every start/stop so a playlist that is still loading knows it was replaced. */
+  private run = 0;
+  private libraryEls: HTMLAudioElement[] = [];
+  private libraryTimer: number | null = null;
   paused = false;
 
   constructor() {
@@ -96,13 +105,21 @@ export class MusicEngine {
     return buf;
   }
 
-  async start(genre: MusicGenre) {
+  async start(genre: MusicGenre, discipline?: Discipline) {
     this.stop();
+    const my = ++this.run;
     this.genre = genre;
     this.prog = PROGRESSIONS[Math.floor(Math.random() * PROGRESSIONS.length)];
     if (this.ctx.state === 'suspended') await this.ctx.resume();
     if (genre === 'silent') return;
     if (genre === 'local') return this.startLocal();
+    if (genre !== 'brainWaves') {
+      const list = await playlist(genre, discipline);
+      if (my !== this.run) return;
+      if (list.length) return this.startLibrary(list, my);
+      genre = SYNTH_FALLBACK[genre] ?? genre;
+      this.genre = genre;
+    }
     this.next = this.ctx.currentTime + 0.1;
     this.step = 0;
     if (genre === 'nature') this.startNatureBed();
@@ -111,8 +128,16 @@ export class MusicEngine {
   }
 
   stop() {
+    this.run++;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.libraryTimer) clearTimeout(this.libraryTimer);
+    this.libraryTimer = null;
+    for (const el of this.libraryEls) {
+      el.pause();
+      el.removeAttribute('src');
+    }
+    this.libraryEls = [];
     for (const n of this.persistent) {
       try {
         (n as OscillatorNode).stop?.();
@@ -148,13 +173,85 @@ export class MusicEngine {
 
   async pause(p: boolean) {
     this.paused = p;
+    const playing = this.libraryEls.filter((e) => !!e.src && (p ? !e.paused : e.dataset.active === '1'));
     if (p) {
       await this.ctx.suspend();
       this.audioEl?.pause();
+      playing.forEach((e) => e.pause());
     } else {
       await this.ctx.resume();
       this.audioEl?.play().catch(() => {});
+      playing.forEach((e) => e.play().catch(() => {}));
     }
+  }
+
+  /**
+   * Plays recorded tracks in order with a crossfade. Two elements alternate: the next track is
+   * downloaded while the current one plays, then faded in over its last seconds.
+   */
+  private startLibrary(list: Track[], my: number) {
+    const els = [0, 1].map(() => {
+      const el = new Audio();
+      el.crossOrigin = 'anonymous';
+      el.preload = 'auto';
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      this.ctx.createMediaElementSource(el).connect(g).connect(this.duckGain);
+      return { el, g };
+    });
+    this.libraryEls = els.map((e) => e.el);
+    let i = 0;
+    let cur = 0;
+    const urls = new Map<string, string>();
+    const load = async (t: Track) => {
+      // fetched whole: a plain GET is what the service worker can cache for offline
+      if (!urls.has(t.id)) {
+        const b = await fetch(trackUrl(t)).then((r) => (r.ok ? r.blob() : Promise.reject()));
+        urls.set(t.id, URL.createObjectURL(b));
+        this.localUrls.push(urls.get(t.id)!);
+      }
+      return urls.get(t.id)!;
+    };
+    const playAt = async (slot: number) => {
+      if (my !== this.run) return;
+      const t = list[i++ % list.length];
+      let src: string;
+      try {
+        src = await load(t);
+      } catch {
+        return; // offline and not cached: keep whatever is playing
+      }
+      if (my !== this.run) return;
+      const { el, g } = els[slot];
+      el.src = src;
+      el.dataset.active = '1';
+      const now = this.ctx.currentTime;
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(1, now + CROSSFADE);
+      if (!this.paused) await el.play().catch(() => {});
+      const other = els[1 - slot];
+      other.g.gain.cancelScheduledValues(now);
+      other.g.gain.setValueAtTime(other.g.gain.value, now);
+      other.g.gain.linearRampToValueAtTime(0, now + CROSSFADE);
+      setTimeout(() => {
+        if (my !== this.run) return;
+        other.el.pause();
+        other.el.dataset.active = '0';
+      }, CROSSFADE * 1000 + 100);
+      cur = slot;
+      // start the next one before this one ends, and download it meanwhile
+      const next = list[i % list.length];
+      load(next).catch(() => {});
+      const schedule = () => {
+        if (my !== this.run) return;
+        const left = (el.duration || t.duration) - el.currentTime;
+        if (left <= CROSSFADE + 0.3 && !this.paused) playAt(1 - cur);
+        else this.libraryTimer = window.setTimeout(schedule, 500);
+      };
+      this.libraryTimer = window.setTimeout(schedule, 1000);
+    };
+    playAt(0);
   }
 
   setIntensity(x: number) {

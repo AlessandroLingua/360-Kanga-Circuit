@@ -11,6 +11,7 @@
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import type { Lang } from '../engine/types';
+import { neuralVoices, pauseNeural, sayNeural, stopNeural, unlockNeural } from './neural';
 
 export interface Teacher {
   id: string;
@@ -23,6 +24,8 @@ export interface Teacher {
   rate: number;
   /** true if the best voice available is a low-quality one */
   lowQuality?: boolean;
+  /** Pre-recorded natural voice (Gemini TTS); the device voice above covers anything not recorded. */
+  neural?: { voice: string; lang: Lang };
 }
 
 export const LOCALE: Record<Lang, string> = { it: 'it-IT', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-PT' };
@@ -89,8 +92,27 @@ async function voicesFor(lang: Lang): Promise<V[]> {
     .sort((a, b) => b.score - a.score);
 }
 
-/** Up to 6 teachers for English, 4 for other languages. Good voices are reused (with a different character) rather than falling back to robotic ones. */
+/**
+ * Recorded natural voices first, then up to 6 device teachers for English and 4 for other languages.
+ * Good device voices are reused (with a different character) rather than falling back to robotic ones.
+ */
 export async function listTeachers(lang: Lang): Promise<Teacher[]> {
+  const [device, recorded] = await Promise.all([deviceTeachers(lang), neuralVoices(lang)]);
+  const best = device[0];
+  const natural: Teacher[] = recorded.map((v) => ({
+    lang: best?.lang ?? LOCALE[lang],
+    voice: best?.voice,
+    voiceName: best?.voiceName,
+    id: `${lang}-gemini-${v.voice}`,
+    label: `${v.voice} · HD ${v.gender === 'male' ? '♂' : '♀'}`,
+    pitch: 1,
+    rate: 0.95,
+    neural: { voice: v.voice, lang },
+  }));
+  return [...natural, ...device];
+}
+
+async function deviceTeachers(lang: Lang): Promise<Teacher[]> {
   const max = lang === 'en' ? 6 : 4;
   const all = await voicesFor(lang);
   const good = all.filter((v) => v.score > -20);
@@ -114,7 +136,7 @@ export async function listTeachers(lang: Lang): Promise<Teacher[]> {
 
 /** True when the device has no natural-sounding voice for the language. */
 export async function hasGoodVoice(lang: Lang) {
-  return (await voicesFor(lang)).some((v) => v.score >= 0);
+  return (await neuralVoices(lang)).length > 0 || (await voicesFor(lang)).some((v) => v.score >= 0);
 }
 
 let speaking = false;
@@ -135,6 +157,15 @@ export async function speak(text: string, t: Teacher, hooks: { onStart?: () => v
     if (my === generation) speaking = false;
     hooks.onEnd?.();
   };
+  if (t.neural) {
+    const done = await sayNeural(text, t.neural.lang, t.neural.voice, (piece) => (my === generation ? deviceSay(piece, t, false) : Promise.resolve()));
+    if (!done && my === generation) await deviceSay(text, t, !!hooks.interrupt);
+  } else await deviceSay(text, t, !!hooks.interrupt);
+  end();
+}
+
+/** Says text with the device engine and resolves when it has finished. */
+async function deviceSay(text: string, t: Teacher, interrupt: boolean): Promise<void> {
   if (native()) {
     try {
       await TextToSpeech.speak({
@@ -145,15 +176,14 @@ export async function speak(text: string, t: Teacher, hooks: { onStart?: () => v
         volume: 1,
         voice: typeof t.voice === 'number' ? t.voice : undefined,
         category: 'playback',
-        queueStrategy: hooks.interrupt ? 0 : 1,
+        queueStrategy: interrupt ? 0 : 1,
       });
     } catch {
       /* interrupted or unavailable */
     }
-    end();
     return;
   }
-  if (!('speechSynthesis' in window)) return end();
+  if (!('speechSynthesis' in window)) return;
   const voices = await webVoices();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = t.lang;
@@ -166,18 +196,22 @@ export async function speak(text: string, t: Teacher, hooks: { onStart?: () => v
       .filter((x) => x.lang.toLowerCase().startsWith(t.lang.slice(0, 2)))
       .sort((a, b) => voiceScore(b.name, b.lang, t.lang) - voiceScore(a.name, a.lang, t.lang))[0];
   if (v) u.voice = v;
-  u.onend = end;
-  u.onerror = end;
-  speechSynthesis.speak(u);
+  await new Promise<void>((resolve) => {
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    speechSynthesis.speak(u);
+  });
 }
 
 export function stopSpeaking() {
   speaking = false;
+  stopNeural();
   if (native()) TextToSpeech.stop().catch(() => {});
   else if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 
 export function pauseSpeaking(p: boolean) {
+  pauseNeural(p);
   if (native() || !('speechSynthesis' in window)) {
     if (p) stopSpeaking();
     return;
@@ -191,6 +225,7 @@ export function pauseSpeaking(p: boolean) {
  * (and audio) after a call made directly from a user gesture.
  */
 export function unlockSpeech() {
+  unlockNeural();
   if (native() || !('speechSynthesis' in window)) return;
   const u = new SpeechSynthesisUtterance(' ');
   u.volume = 0;

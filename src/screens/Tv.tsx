@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FigureCanvas } from '../components/FigureCanvas';
-import { figureAt } from '../engine/animate';
+import { figureAt, type FigureFrame } from '../engine/animate';
 import type { Figure, Session } from '../engine/types';
 import { onTvState, type TvState } from '../services/cast';
 
@@ -8,7 +8,7 @@ import { onTvState, type TvState } from '../services/cast';
 export function Tv() {
   const [session, setSession] = useState<Session | null>(null);
   const [st, setSt] = useState<TvState | null>(null);
-  const frameRef = useRef<{ fig: Figure; breath: number } | null>(null);
+  const frameRef = useRef<FigureFrame | null>(null);
   const recv = useRef<{ s: TvState; at: number } | null>(null);
 
   useEffect(

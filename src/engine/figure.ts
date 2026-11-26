@@ -91,6 +91,10 @@ export interface DrawTheme {
   accent: string;
   /** Which instructor to draw; defaults to the female model. */
   model?: FigureModel;
+  /** Floor line position as a fraction of the height (default 0.84); the body fits above it. */
+  floorAt?: number;
+  /** Draw only the floor, mat and shadow (the 3D figure is drawn on top). */
+  floorOnly?: boolean;
 }
 
 // ───────── human figure ─────────
@@ -140,8 +144,10 @@ const sampleProfile = (arr: number[], t: number) => {
 export function drawFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, h: number, theme: DrawTheme, breath = 0) {
   const s = skeleton(f);
   const b = bounds(s);
-  const scale = Math.min((h * 0.72) / 170, (w * 0.8) / 200);
-  const floorY = h * 0.84;
+  const floorAt = theme.floorAt ?? 0.84;
+  // fixed scale for a consistent size, shrunk only when a pose is taller (arms overhead) or wider
+  const scale = Math.min((h * (floorAt - 0.08)) / Math.max(170, b.maxY - b.minY + 14), (w * 0.8) / Math.max(200, b.maxX - b.minX + 20));
+  const floorY = h * floorAt;
   const cx = w / 2 - ((b.minX + b.maxX) / 2) * scale;
   const cy = floorY - (b.maxY + 3) * scale;
   const T = (p: P) => ({ x: cx + p.x * scale, y: cy + p.y * scale });
@@ -168,6 +174,7 @@ export function drawFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, 
   grd.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grd;
   ctx.fillRect(0, floorY - 10, w, 16);
+  if (theme.floorOnly) return;
 
   /** Tapered limb segment: circles of radius ra at a and rb at b joined by tangents. */
   const capsule = (a: P, bb: P, ra: number, rb: number, color: string) => {

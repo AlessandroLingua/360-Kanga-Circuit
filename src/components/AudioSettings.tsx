@@ -5,7 +5,7 @@ import { useLang, useT } from '../i18n';
 import { setState, useStore } from '../store/store';
 import { Field, Segmented, Select, Slider } from './ui';
 
-const GENRES: MusicGenre[] = ['ambient', 'pianoStrings', 'acoustic', 'altBeats', 'brainWaves', 'nature', 'silent', 'local'];
+const GENRES: MusicGenre[] = ['ambient', 'pianoStrings', 'acoustic', 'lofi', 'altBeats', 'electronic', 'hipHop', 'rock', 'brainWaves', 'nature', 'silent', 'local'];
 
 export function AudioSettings({
   instruction,

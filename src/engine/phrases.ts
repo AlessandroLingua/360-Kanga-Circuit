@@ -37,4 +37,5 @@ const P = {
 } satisfies Record<string, Required<L10n>>;
 
 export type PhraseKey = keyof typeof P;
+export const PHRASE_KEYS = Object.keys(P) as PhraseKey[];
 export const ph = (k: PhraseKey, lang: Lang) => P[k][lang] ?? P[k].en;

@@ -16,6 +16,7 @@ import { Practice } from './screens/Practice';
 import { Settings } from './screens/Settings';
 import { Tv } from './screens/Tv';
 import { Gallery } from './screens/Gallery';
+import { PoseAudit } from './screens/PoseAudit';
 
 export type Route = 'practice' | 'activity' | 'account';
 
@@ -28,9 +29,9 @@ const NAV: { r: Route; icon: IconName; label: 'tabPractice' | 'tabActivity' | 't
 // old links keep working
 const LEGACY: Record<string, Route> = { home: 'practice', yoga: 'practice', pilates: 'practice', hiit: 'practice', meditation: 'practice', progress: 'activity', settings: 'account', offline: 'account' };
 
-const routeFromHash = (): Route | 'tv' | 'gallery' => {
-  const h = location.hash.slice(1);
-  if (h === 'tv' || h === 'gallery') return h;
+const routeFromHash = (): Route | 'tv' | 'gallery' | 'audit' => {
+  const h = location.hash.slice(1).split('?')[0];
+  if (h === 'tv' || h === 'gallery' || h === 'audit') return h;
   if (NAV.some((n) => n.r === h)) return h as Route;
   return LEGACY[h] ?? 'practice';
 };
@@ -38,7 +39,7 @@ const routeFromHash = (): Route | 'tv' | 'gallery' => {
 export function App() {
   const lang = useStore((s) => s.lang);
   const history = useStore((s) => s.history);
-  const [route, setRoute] = useState<Route | 'tv' | 'gallery'>(routeFromHash);
+  const [route, setRoute] = useState<Route | 'tv' | 'gallery' | 'audit'>(routeFromHash);
   const [session, setSessionRaw] = useState<Session | null>(null);
   const [challengeOpen, setChallengeOpen] = useState(false);
   const setSession = (s: Session | null) => {
@@ -76,6 +77,7 @@ export function App() {
   const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
 
   if (route === 'tv') return <Tv />;
+  if (route === 'audit') return <PoseAudit />;
   if (route === 'gallery') return <LangCtx.Provider value={lang}><Gallery /></LangCtx.Provider>;
 
   if (session)

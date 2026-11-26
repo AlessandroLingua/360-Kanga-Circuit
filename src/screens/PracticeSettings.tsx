@@ -17,7 +17,7 @@ import { setState, useStore, type AppState } from '../store/store';
 import { ExercisesSheet } from './PracticeSheets';
 import { buildPractice, currentType } from './practiceSession';
 
-const GENRES: MusicGenre[] = ['ambient', 'pianoStrings', 'acoustic', 'altBeats', 'brainWaves', 'nature', 'local', 'silent'];
+const GENRES: MusicGenre[] = ['ambient', 'pianoStrings', 'acoustic', 'lofi', 'altBeats', 'electronic', 'hipHop', 'rock', 'brainWaves', 'nature', 'local', 'silent'];
 const ROMAN = ['0', 'I', 'II', 'III'];
 const PHASE_TO_STEP: Record<PhaseLength, number> = { none: 0, standard: 2, extended: 3 };
 

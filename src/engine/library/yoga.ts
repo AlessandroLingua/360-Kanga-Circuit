@@ -33,7 +33,7 @@ const YOGA_CORE: Move[] = [
     name: n('Standing Forward Fold', 'Piegamento in avanti in piedi', 'Flexión hacia adelante de pie', 'Flexion avant debout', 'Stehende Vorbeuge', 'Flexão à frente em pé'),
     cue: c('Hinge at the hips, bend the knees as much as you need, let the head hang heavy and release the neck.', 'Piegati dalle anche, fletti le ginocchia quanto serve, lascia la testa pesante e rilassa il collo.'),
     short: c('Fold forward, head heavy.', 'Piegati in avanti, testa pesante.'),
-    focus: ['hamstrings', 'flexibility', 'lowerBack'], styles: ALL, frames: [[12, 5, 95, 30, 95, 30, 0, 0, 0, 0, 8]],
+    focus: ['hamstrings', 'flexibility', 'lowerBack'], styles: ALL, frames: [[22, 8, 6, 0, 6, 0, -6, 3, -6, 3, 8]],
   }),
   y({
     id: 'ardhaUttanasana', sanskrit: 'Ardha Uttanasana', position: 'standing', level: 1, intensity: 2,
@@ -217,7 +217,7 @@ const YOGA_CORE: Move[] = [
     name: n('Child\'s Pose', 'Posizione del bambino', 'Postura del niño', 'Posture de l\'enfant', 'Kindhaltung', 'Postura da criança'),
     cue: c('Big toes together, knees wide, sit the hips back to the heels and rest the forehead down, arms long.', 'Alluci uniti, ginocchia aperte, porta i fianchi verso i talloni e appoggia la fronte, braccia lunghe.'),
     short: c('Rest and breathe.', 'Riposa e respira.'),
-    focus: ['lowerBack', 'hipOpeners'], styles: ['vinyasa', 'hatha', 'gentle', 'restorative', 'yin', 'ashtanga'], frames: [[86, 85, 92, 92, 92, 92, 88, -90, 88, -90, 6]],
+    focus: ['lowerBack', 'hipOpeners'], styles: ['vinyasa', 'hatha', 'gentle', 'restorative', 'yin', 'ashtanga'], frames: [[72, 75, 85, 85, 85, 85, 60, -90, 60, -90, 6]],
   }),
   y({
     id: 'camel', sanskrit: 'Ustrasana', position: 'kneeling', level: 3, intensity: 3.5,
@@ -367,7 +367,7 @@ const YOGA_CORE: Move[] = [
     name: n('Bridge', 'Ponte', 'Puente', 'Pont', 'Brücke', 'Ponte'),
     cue: c('Feet hip-width under the knees, press through the feet to lift the hips, roll the shoulders under.', 'Piedi alla larghezza delle anche sotto le ginocchia, spingi sui piedi per sollevare i fianchi, porta le spalle sotto.'),
     short: c('Lift the hips.', 'Solleva i fianchi.'),
-    focus: ['backbends', 'glutes', 'chestOpening'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[-118, -95, 88, 88, 88, 88, 105, 0, 105, 0, -6]],
+    focus: ['backbends', 'glutes', 'chestOpening'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[-45, -80, 90, 90, 90, 90, 100, -5, 100, -5, -6]],
   }),
   y({
     id: 'wheel', sanskrit: 'Urdhva Dhanurasana', position: 'supine', level: 5, intensity: 5,

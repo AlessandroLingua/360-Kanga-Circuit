@@ -7,3 +7,11 @@ server/data
 *.tsbuildinfo
 .env.local
 .env.*.local
+
+# Gemini TTS voice samples (regenerate with npm run tts:samples)
+public/voice/_samples/
+
+# Generated audio (hundreds of MB, paid to generate): served from a web host, not committed.
+# Back them up before deleting! Music: media/music (hosted on kanga-dev.it). Rebuild with npm run tts:generate / scripts/music-generate.ts
+public/voice/*/
+media/

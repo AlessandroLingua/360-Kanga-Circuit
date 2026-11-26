@@ -1,0 +1,14 @@
+{
+  "it": [
+    {
+      "voice": "Achird",
+      "gender": "male",
+      "count": 1600
+    },
+    {
+      "voice": "Sulafat",
+      "gender": "female",
+      "count": 1600
+    }
+  ]
+}

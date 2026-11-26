@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MusicEngine } from '../audio/music';
 import { isSpeaking, listTeachers, pauseSpeaking, speak, stopSpeaking, type Teacher } from '../audio/voice';
+import { prefetchNeural } from '../audio/neural';
 import { FigureCanvas } from '../components/FigureCanvas';
-import { figureAt, getMove, indexAt, offsets } from '../engine/animate';
+import { figureAt, getMove, indexAt, offsets, type FigureFrame } from '../engine/animate';
 import { moveName } from '../engine/cues';
 import { breathWords } from '../engine/mind';
 import type { Figure, Session } from '../engine/types';
@@ -14,6 +15,8 @@ import { clearPref, dislikeMove, getState, likeMove, setState, useStore } from '
 import { fmt } from '../components/ui';
 import { phaseLabel, variantLabel } from '../i18n/variant';
 
+/** With subtitles on, the floor line moves up so the text fits below it (see .subtitle in styles.css). */
+const SUB_FLOOR = 0.7;
 /** Seconds a subtitle stays on screen: roughly reading/speaking time. */
 const subtitleTime = (text: string) => Math.max(3.5, text.split(/\s+/).length * 0.45 + 1.5);
 
@@ -33,7 +36,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
   const [finished, setFinished] = useState<null | { active: number[]; early: boolean }>(null);
   const [showSubs, setShowSubs] = useState(audio.subtitles);
 
-  const frameRef = useRef<{ fig: Figure; breath: number } | null>(null);
+  const frameRef = useRef<FigureFrame | null>(null);
   // the clock starts paused and only runs once the voice is loaded, so the first instruction is never lost
   const clock = useRef({ base: 0, t0: performance.now(), paused: true });
   const fired = useRef(new Set<string>());
@@ -56,10 +59,12 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
     const m = new MusicEngine();
     music.current = m;
     m.setVolume(audio.musicVolume);
-    m.start(audio.genre);
+    m.start(audio.genre, session.discipline);
     listTeachers(session.lang).then((ts) => {
       if (cancelled) return;
       teacher.current = ts[audio.teacherIdx % ts.length] ?? ts[0] ?? null;
+      const nv = teacher.current?.neural;
+      if (nv) prefetchNeural(session.segments.flatMap((g) => g.cues.map((c) => c.text)), nv.lang, nv.voice);
       startedAt.current = new Date();
       clock.current = { base: 0, t0: performance.now(), paused: false };
       if (session.discipline === 'meditation') m.bell('soft');
@@ -273,7 +278,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
         ) : clip ? (
           <video className="clip" src={clip} autoPlay loop muted playsInline key={clip} />
         ) : (
-          <FigureCanvas frameRef={frameRef} />
+          <FigureCanvas frameRef={frameRef} floorAt={showSubs ? SUB_FLOOR : undefined} />
         )}
         {seg.kind === 'rest' && <div className="rest-badge">{t('rest')} · {Math.ceil(segLeft)}</div>}
         {showSubs && subtitle && <div className="subtitle">{subtitle}</div>}

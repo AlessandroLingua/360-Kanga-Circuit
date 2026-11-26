@@ -22,7 +22,35 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,json,woff2}'],
+        // recorded voices are large: cached on use (per language and voice), not installed up front
+        globIgnores: ['**/voice/**', '**/music/**'],
         runtimeCaching: [
+          {
+            // 3D instructor models and the floor/mat photo textures
+            urlPattern: ({ url }) => /\/(models|textures)\//.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'kanga-3d', expiration: { maxEntries: 20 } },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/music/') && url.pathname.endsWith('.mp3'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'kanga-music', expiration: { maxEntries: 60 } },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.endsWith('/music/library.json'),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'kanga-music-index' },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/voice/') && url.pathname.endsWith('.mp3'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'kanga-voice', expiration: { maxEntries: 12000 } },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/voice/') && url.pathname.endsWith('.json'),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'kanga-voice-index' },
+          },
           {
             urlPattern: ({ url }) => url.pathname.includes('/clips/'),
             handler: 'CacheFirst',

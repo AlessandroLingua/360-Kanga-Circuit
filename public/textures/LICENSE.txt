@@ -1,0 +1,3 @@
+Textures from Poly Haven (https://polyhaven.com), CC0 public domain:
+- oak_* : "Oak Wood Planks" (oak_wood_planks), 1K
+- rubber_* : "Rubberized Track" (rubberized_track), 1K, normal + roughness only
