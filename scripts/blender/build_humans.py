@@ -38,20 +38,38 @@ COMMON = {
     "proxy": "",
 }
 
+
+def both(central, sided):
+    """Target stack: central targets as given, sided ones applied to the left and right alike."""
+    out = [{"target": k, "value": v} for k, v in central.items()]
+    for k, v in sided.items():
+        out += [{"target": f"l-{k}", "value": v}, {"target": f"r-{k}", "value": v}]
+    return out
+
+
 MODELS = {
     "female": {
-        "phenotype": {"gender": 0.0, "age": 0.5, "muscle": 0.62, "weight": 0.42, "proportions": 0.65, "height": 0.55,
+        "phenotype": {"gender": 0.0, "age": 0.5, "muscle": 0.62, "weight": 0.42, "proportions": 1.0, "height": 0.55,
                       "cupsize": 0.45, "firmness": 0.7, "race": {"asian": 0.1, "caucasian": 0.8, "african": 0.1}},
         "skin_mhmat": "young_caucasian_female/young_caucasian_female.mhmat",
         "hair": "ponytail01/ponytail01.mhclo",
         "clothes": ["female_sportsuit01/female_sportsuit01.mhclo", "shoes05/shoes05.mhclo"],
+        # an active woman: toned abdomen, defined shoulders, thighs and calves, slight V
+        "targets": both({"stomach-tone-incr": 0.5, "buttocks-volume-incr": 0.15, "torso-vshape-incr": 0.08},
+                        {"upperarm-shoulder-muscle-incr": 0.25, "upperarm-muscle-incr": 0.15, "upperleg-muscle-incr": 0.2,
+                         "lowerleg-muscle-incr": 0.3}),
     },
     "male": {
-        "phenotype": {"gender": 1.0, "age": 0.5, "muscle": 0.7, "weight": 0.45, "proportions": 0.65, "height": 0.55,
+        "phenotype": {"gender": 1.0, "age": 0.5, "muscle": 0.7, "weight": 0.45, "proportions": 1.0, "height": 0.55,
                       "cupsize": 0.5, "firmness": 0.5, "race": {"asian": 0.1, "caucasian": 0.8, "african": 0.1}},
         "skin_mhmat": "young_caucasian_male/young_caucasian_male.mhmat",
         "hair": "short04/short04.mhclo",
         "clothes": ["male_casualsuit04/male_casualsuit04.mhclo", "shoes06/shoes06.mhclo"],
+        # an athletic man: chest, lats and a V-shaped back, shoulders, arms, thighs and calves
+        "targets": both({"stomach-tone-incr": 0.6, "torso-muscle-pectoral-incr": 0.4, "torso-muscle-dorsi-incr": 0.35,
+                         "torso-vshape-incr": 0.3},
+                        {"upperarm-shoulder-muscle-incr": 0.45, "upperarm-muscle-incr": 0.35, "lowerarm-muscle-incr": 0.3,
+                         "upperleg-muscle-incr": 0.3, "lowerleg-muscle-incr": 0.4}),
     },
 }
 
@@ -71,18 +89,21 @@ def build(name):
     info.update(MODELS[name])
     info["name"] = name
     settings = HumanService.get_default_deserialization_settings()
-    settings["subdiv_levels"] = 0
+    # one level of subdivision, baked: rounder joints and muscles instead of a faceted low-poly look
+    settings["subdiv_levels"] = 1
     settings["override_skin_model"] = "MAKESKIN"
     basemesh = HumanService.deserialize_from_dict(info, settings)
 
     # bake body shape and drop helper geometry (and the parts hidden under clothes)
     TargetService.bake_targets(basemesh)
-    ExportService.bake_modifiers_remove_helpers(basemesh, bake_masks=True, bake_subdiv=False, remove_helpers=True, also_proxy=True)
+    ExportService.bake_modifiers_remove_helpers(basemesh, bake_masks=True, bake_subdiv=True, remove_helpers=True, also_proxy=True)
 
     # small, web-friendly textures
+    # (the skin keeps 2048 px: it covers the face, hands and arms seen up close)
     for img in bpy.data.images:
-        if img.size[0] > 1024:
-            img.scale(1024, max(1, int(img.size[1] * 1024 / img.size[0])))
+        limit = 2048 if "skin" in img.name.lower() or "caucasian" in img.name.lower() else 1024
+        if img.size[0] > limit:
+            img.scale(limit, max(1, int(img.size[1] * limit / img.size[0])))
 
     # Only hair-like parts need transparency, and a cutout (alpha clip) is enough: alpha *blending*
     # breaks depth sorting, letting inner surfaces show through the skin. Everything else is opaque.

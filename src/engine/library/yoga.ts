@@ -337,7 +337,7 @@ const YOGA_CORE: Move[] = [
     name: n('Saddle', 'Sella', 'Silla de montar', 'Selle', 'Sattel', 'Sela'),
     cue: c('Sitting between or on the heels, lean back onto the hands, forearms or a bolster, feeling the front of the thighs.', 'Seduto tra o sui talloni, inclinati indietro su mani, avambracci o cuscino, sentendo la parte anteriore delle cosce.'),
     short: c('Lean back slowly.', 'Inclinati lentamente indietro.'),
-    focus: ['quads', 'hipFlexors', 'backbends'], styles: ['yin'], frames: [[-110, -110, 160, 120, 160, 120, 92, -90, 92, -90, -6]],
+    focus: ['quads', 'hipFlexors', 'backbends'], styles: ['yin'], frames: [[-96, -96, -100, -100, -100, -100, 88, -90, 88, -90, -6]],
   }),
   // ───────────── prone ─────────────
   y({

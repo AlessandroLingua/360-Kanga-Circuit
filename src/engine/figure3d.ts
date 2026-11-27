@@ -66,7 +66,9 @@ function contactVertices(meshes: THREE.SkinnedMesh[]): Rig['contactVerts'] {
     const wts = m.geometry.attributes.skinWeight;
     const names = m.skeleton.bones.map((b) => b.name.replace(/^mixamorig:?/, ''));
     const verts: Partial<Record<Region, number[]>> = {};
-    for (let i = 0; i < idx.count; i += 3) {
+    // about 2.5 thousand samples per mesh, however dense it is (the body is subdivided)
+    const step = Math.max(3, Math.round(idx.count / 2500));
+    for (let i = 0; i < idx.count; i += step) {
       let best = 0;
       let bone = 0;
       for (let k = 0; k < 4; k++) if (wts.getComponent(i, k) > best) [best, bone] = [wts.getComponent(i, k), idx.getComponent(i, k)];
@@ -552,14 +554,15 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
   const aim = (s: Seg, wanted: THREE.Vector3) => {
     const bone = rig.bones[BONES[s]];
     // hard joint limits, whoever asks (the pose, the floor solver, the hand IK, a transition):
-    // a knee or an elbow folds to ~155° at most — past that the shin goes through the thigh
+    // an elbow folds to ~155° at most, a knee to ~162° — past that the shin goes through the thigh
     let to = wanted;
     const LIMB: Partial<Record<Seg, [string, string]>> = { lShin: ['LeftUpLeg', 'LeftLeg'], rShin: ['RightUpLeg', 'RightLeg'], lFore: ['LeftArm', 'LeftForeArm'], rFore: ['RightArm', 'RightForeArm'] };
     const lim = LIMB[s];
     if (lim) {
       const upper = wp(rig.bones[lim[1]]).sub(wp(rig.bones[lim[0]])).normalize();
       const fold = upper.angleTo(wanted);
-      const max = (155 * Math.PI) / 180;
+      // (the knee folds further than the elbow when sitting on the heels: ~160° passively)
+      const max = ((s === 'lShin' || s === 'rShin' ? 162 : 155) * Math.PI) / 180;
       if (fold > max) {
         const axis = new THREE.Vector3().crossVectors(upper, wanted);
         if (axis.lengthSq() > 1e-8) to = upper.clone().applyAxisAngle(axis.normalize(), max);
@@ -693,8 +696,8 @@ function swingLeg(rig: Rig, side: Side, sup: Supports[Side], floor: number, aim:
   const lift = P.y - legContact(rig, side, sup);
   const v = P.clone().sub(Hp);
   const len = v.length();
-  const dy = floor + lift - Hp.y;
-  if (Math.abs(dy) >= len) return;
+  // out of reach: swing as far as the leg goes rather than leaving it where it was
+  const dy = Math.max(-len * 0.995, Math.min(len * 0.995, floor + lift - Hp.y));
   const hz = new THREE.Vector3(v.x, 0, v.z);
   if (hz.lengthSq() < 1e-6) hz.set(0, 0, 1);
   hz.normalize().multiplyScalar(Math.sqrt(len * len - dy * dy));
@@ -756,7 +759,7 @@ function legContact(rig: Rig, side: Side, sup: Supports[Side]) {
   const regions: Region[] = [];
   const B = rig.bones;
   // a straight leg lying along the floor touches it with the calf as well as the heel
-  const along = sup.foot && Math.abs(wp(B[side + 'Foot']).sub(wp(B[side + 'UpLeg'])).normalize().y) < 0.5;
+  const along = sup.foot && Math.abs(wp(B[side + 'Foot']).sub(wp(B[side + 'UpLeg'])).normalize().y) < 0.3;
   if (sup.knee || along) regions.push((p + 'Knee') as Region);
   if (sup.foot) regions.push((p + 'Foot') as Region);
   const m = regionMin(rig, regions);
@@ -980,11 +983,24 @@ const smooth = new WeakMap<CanvasRenderingContext2D, { d: number; t: THREE.Vecto
 
 /** Posed bounds (skinned) in world space, into `box`. */
 function measure(rig: Rig) {
+  // on the sampled skin points (hands, feet, head, pelvis, back, legs: the body's extremes) rather
+  // than every vertex: skinning all ~40k vertices of the subdivided body costs too much per frame
   box.makeEmpty();
-  for (const m of rig.meshes) {
-    m.computeBoundingBox();
-    if (m.boundingBox) box.union(mb.copy(m.boundingBox).applyMatrix4(m.matrixWorld));
+  for (const { mesh, verts } of rig.contactVerts) {
+    mesh.updateMatrixWorld();
+    for (const list of Object.values(verts)) {
+      for (const i of list!) {
+        mesh.getVertexPosition(i, cv);
+        box.expandByPoint(cv.applyMatrix4(mesh.matrixWorld));
+      }
+    }
   }
+  // a little margin for what the samples skip (hair, the outer side of a shoulder)
+  // (not below: the lowest skin point is where the floor goes)
+  box.min.x -= 0.03;
+  box.min.z -= 0.03;
+  box.max.addScalar(0.03);
+  void mb;
 }
 
 /**
@@ -1117,7 +1133,7 @@ function solveNow(rig: Rig, f: Figure, breath: number, yaw: number): Supports {
     const t = fig[0];
     const back = (th: number) => within(th, 0, -180, 180) * Math.sign(t) < -10;
     const dogLike = Math.abs(within(t, 0, -180, 180)) < 80 && !seat && !lying && supports.Left.foot && supports.Right.foot && !supports.Left.knee && !supports.Right.knee && back(fig[6]) && back(fig[8]);
-    const { moved, short } = groundHands(rig, solvedFloor, aim, supports, !dogLike);
+    const { moved, short } = groundHands(rig, solvedFloor, aim, supports, !dogLike || Math.abs(within(fig[6], f[6], -180, 180)) >= 13);
     if (moved) measure(rig);
     // only the hands on the floor (arm balances): the floor is where the palms are
     if (legless) {
@@ -1126,13 +1142,16 @@ function solveNow(rig: Rig, f: Figure, breath: number, yaw: number): Supports {
       return supports;
     }
     if (short < 0.01 || pass >= 8 || headDown || lifted || handsAdded) return supports;
-    if (dogLike) {
+    // (at most ~14° further back in all: a down dog keeps its hips high and its head off the mat;
+    // what the arms still miss, the palms reach by pressing the heels of the hands down)
+    if (dogLike && Math.abs(within(fig[6], f[6], -180, 180)) < 14 && regionMin(rig, ['head']).head > solvedFloor + 0.15) {
       const th = (Math.abs(within(fig[6], 0, -180, 180)) * Math.PI) / 180;
-      const d = Math.min(12, ((short / (0.85 * Math.max(0.35, Math.sin(th)))) * 180) / Math.PI);
+      const d = Math.min(14 - Math.abs(within(fig[6], f[6], -180, 180)), ((short / (0.85 * Math.max(0.35, Math.sin(th)))) * 180) / Math.PI);
       const sg = t > 0 ? -d : d;
       fig = [...fig.slice(0, 6), fig[6] + sg, fig[7] + sg, fig[8] + sg, fig[9] + sg, ...fig.slice(10)] as Figure;
       continue;
     }
+    if (dogLike) return supports;
     // folding further would put the head on the mat: the hands stay as close as they got
     if (regionMin(rig, ['head']).head < solvedFloor + 0.12) return supports;
     const tip = ((short / 0.45) * 180) / Math.PI;
