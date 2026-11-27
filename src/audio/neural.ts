@@ -58,6 +58,13 @@ export function unlockNeural() {
   a.play().catch(() => {});
 }
 
+let voiceVolume = 1;
+/** Loudness of the recorded voice (0–1), set by the music/voice balance. */
+export function setNeuralVolume(v: number) {
+  voiceVolume = v;
+  if (el) el.volume = v;
+}
+
 let token = 0;
 export function stopNeural() {
   token++;
@@ -93,6 +100,7 @@ function playClip(url: string): Promise<void> {
       reject(new Error('clip failed'));
     };
     a.src = url;
+    a.volume = voiceVolume;
     a.play().catch((e) => {
       finishCurrent = null;
       reject(e);

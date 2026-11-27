@@ -37,7 +37,7 @@ export function FigureCanvas({ frameRef, className, floorAt }: { frameRef: React
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const f = frameRef.current;
-      if (f && theme) drawAnyFigure(ctx, f.fig, w, h, { ...theme, floorAt: floorRef.current }, f.breath, { yaw: f.yaw, orbit: f.orbit, elev: f.elev });
+      if (f && theme) drawAnyFigure(ctx, f.fig, w, h, { ...theme, floorAt: floorRef.current }, f.breath, { yaw: f.yaw, orbit: f.orbit, elev: f.elev, wall: f.wall });
       else ctx.clearRect(0, 0, w, h);
       raf = requestAnimationFrame(draw);
     };

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MusicEngine } from '../audio/music';
-import { isSpeaking, listTeachers, pauseSpeaking, speak, stopSpeaking, type Teacher } from '../audio/voice';
+import { isSpeaking, listTeachers, pauseSpeaking, setVoiceVolume, speak, stopSpeaking, type Teacher } from '../audio/voice';
 import { prefetchNeural } from '../audio/neural';
 import { FigureCanvas } from '../components/FigureCanvas';
-import { figureAt, getMove, indexAt, offsets, type FigureFrame } from '../engine/animate';
+import { figureAt, getMove, indexAt, nextPreviewAt, offsets, type FigureFrame } from '../engine/animate';
 import { moveName } from '../engine/cues';
 import { breathWords } from '../engine/mind';
-import type { Figure, Session } from '../engine/types';
+import type { Figure, MusicGenre, Session } from '../engine/types';
 import { useLang, useT } from '../i18n';
 import { broadcastTv, startCast } from '../services/cast';
 import { clipFor } from '../services/clips';
@@ -17,6 +17,16 @@ import { phaseLabel, variantLabel } from '../i18n/variant';
 
 /** With subtitles on, the floor line moves up so the text fits below it (see .subtitle in styles.css). */
 const SUB_FLOOR = 0.7;
+/** Genres that can be switched to mid-session ("my music" needs files picked in the settings). */
+const PLAYER_GENRES: MusicGenre[] = ['ambient', 'pianoStrings', 'acoustic', 'lofi', 'altBeats', 'electronic', 'hipHop', 'rock', 'brainWaves', 'nature', 'silent'];
+
+/**
+ * Music/voice balance: 0 = mostly music, 0.5 = both full, 1 = mostly voice.
+ * Neither side ever goes fully silent: the slider is a balance, not a mute.
+ */
+const musicShare = (mix: number) => 0.1 + 0.9 * Math.min(1, 2 * (1 - mix));
+const voiceShare = (mix: number) => 0.25 + 0.75 * Math.min(1, 2 * mix);
+
 /** Seconds a subtitle stays on screen: roughly reading/speaking time. */
 const subtitleTime = (text: string) => Math.max(3.5, text.split(/\s+/).length * 0.45 + 1.5);
 
@@ -37,6 +47,8 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
   const [showSubs, setShowSubs] = useState(audio.subtitles);
 
   const frameRef = useRef<FigureFrame | null>(null);
+  // during rests: the coming exercise, looping in the corner preview
+  const nextRef = useRef<FigureFrame | null>(null);
   // the clock starts paused and only runs once the voice is loaded, so the first instruction is never lost
   const clock = useRef({ base: 0, t0: performance.now(), paused: true });
   const fired = useRef(new Set<string>());
@@ -58,7 +70,8 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
     let cancelled = false;
     const m = new MusicEngine();
     music.current = m;
-    m.setVolume(audio.musicVolume);
+    m.setVolume(audio.musicVolume * musicShare(audio.voiceMix ?? 0.5));
+    setVoiceVolume(voiceShare(audio.voiceMix ?? 0.5));
     m.start(audio.genre, session.discipline);
     listTeachers(session.lang).then((ts) => {
       if (cancelled) return;
@@ -76,6 +89,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
       cancelled = true;
       m.dispose();
       stopSpeaking();
+      setVoiceVolume(1);
       lock?.release().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -154,6 +168,7 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
       }
       music.current?.setIntensity(seg.intensity);
       frameRef.current = figureAt(session, i, se);
+      nextRef.current = nextPreviewAt(session, i, se);
       const ts = performance.now();
       if (ts - lastUi > 200) {
         lastUi = ts;
@@ -281,6 +296,12 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
           <FigureCanvas frameRef={frameRef} floorAt={showSubs ? SUB_FLOOR : undefined} />
         )}
         {seg.kind === 'rest' && <div className="rest-badge">{t('rest')} · {Math.ceil(segLeft)}</div>}
+        {isRest && nextMove && !audioOnly && (
+          <div className="next-preview" aria-label={`${t('upNext')}: ${moveName(nextMove, { lang, sanskrit: false })}`}>
+            <FigureCanvas frameRef={nextRef} className="next-canvas" floorAt={0.9} />
+            <span>{t('upNext')}</span>
+          </div>
+        )}
         {showSubs && subtitle && <div className="subtitle">{subtitle}</div>}
         {!ready && <div className="loading-badge">…</div>}
         {paused && <button className="paused-overlay" onClick={togglePause} aria-label={t('resume')}>▶</button>}
@@ -312,7 +333,43 @@ export function Player({ session, onExit }: { session: Session; onExit: () => vo
       </div>
       <div className="controls small">
         <label className="toggle"><input type="checkbox" checked={showSubs} onChange={(e) => setShowSubs(e.target.checked)} /> {t('subtitles')}</label>
-        <label className="vol">🎵 <input type="range" min={0} max={1} step={0.05} defaultValue={audio.musicVolume} onChange={(e) => { music.current?.setVolume(+e.target.value); setState((s) => ({ audio: { ...s.audio, musicVolume: +e.target.value } })); }} /></label>
+        <label className="vol mix" title={t('musicVoiceMix')}>
+          <span aria-hidden>🎵</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            aria-label={t('musicVoiceMix')}
+            defaultValue={audio.voiceMix ?? 0.5}
+            onChange={(e) => {
+              const mix = +e.target.value;
+              music.current?.setVolume(getState().audio.musicVolume * musicShare(mix));
+              setVoiceVolume(voiceShare(mix));
+              setState((s) => ({ audio: { ...s.audio, voiceMix: mix } }));
+            }}
+          />
+          <span aria-hidden>🗣️</span>
+        </label>
+      </div>
+      <div className="controls small music-row">
+        <select
+          className="genre-pick"
+          aria-label={t('musicGenre')}
+          value={audio.genre}
+          onChange={(e) => {
+            const g = e.target.value as MusicGenre;
+            setState((s) => ({ audio: { ...s.audio, genre: g } }));
+            music.current?.start(g, session.discipline);
+          }}
+        >
+          {(PLAYER_GENRES.includes(audio.genre) ? PLAYER_GENRES : [audio.genre, ...PLAYER_GENRES]).map((g) => (
+            <option key={g} value={g}>{t(`g_${g}`)}</option>
+          ))}
+        </select>
+        <button className="chip" onClick={() => music.current?.nextTrack()} disabled={audio.genre === 'silent' || audio.genre === 'local'} aria-label={t('nextSong')}>
+          ⏭ {t('nextSong')}
+        </button>
       </div>
     </div>
   );

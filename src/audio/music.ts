@@ -127,8 +127,18 @@ export class MusicEngine {
     this.timer = window.setInterval(() => this.schedule(), 100);
   }
 
+  /** Next song: the following recorded track with a crossfade, or a new progression for the generated genres. */
+  nextTrack() {
+    if (this.skipTrack) return this.skipTrack();
+    if (this.genre === 'silent' || this.genre === 'local') return;
+    this.prog = PROGRESSIONS[Math.floor(Math.random() * PROGRESSIONS.length)];
+    this.step = 0;
+  }
+  private skipTrack: (() => void) | null = null;
+
   stop() {
     this.run++;
+    this.skipTrack = null;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.libraryTimer) clearTimeout(this.libraryTimer);
@@ -252,6 +262,11 @@ export class MusicEngine {
       this.libraryTimer = window.setTimeout(schedule, 1000);
     };
     playAt(0);
+    this.skipTrack = () => {
+      if (my !== this.run) return;
+      if (this.libraryTimer) clearTimeout(this.libraryTimer);
+      playAt(1 - cur);
+    };
   }
 
   setIntensity(x: number) {

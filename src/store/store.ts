@@ -46,7 +46,7 @@ export interface AppState {
   pilates: FitnessConfig;
   hiit: FitnessConfig;
   meditation: MeditationConfig;
-  audio: { teacherIdx: number; genre: MusicGenre; musicVolume: number; subtitles: boolean };
+  audio: { teacherIdx: number; genre: MusicGenre; musicVolume: number; subtitles: boolean; /** 0 = mostly music … 1 = mostly voice */ voiceMix: number };
   likes: string[];
   dislikes: string[];
   history: HistoryEntry[];
@@ -77,7 +77,7 @@ const initial = (): AppState => {
     pilates: { ...DEFAULT_FITNESS('pilates'), lang },
     hiit: { ...DEFAULT_FITNESS('hiit'), lang },
     meditation: { ...DEFAULT_MEDITATION, lang },
-    audio: { teacherIdx: 0, genre: 'ambient', musicVolume: 0.55, subtitles: true },
+    audio: { teacherIdx: 0, genre: 'ambient', musicVolume: 0.55, subtitles: true, voiceMix: 0.5 },
     likes: [],
     dislikes: [],
     history: [],

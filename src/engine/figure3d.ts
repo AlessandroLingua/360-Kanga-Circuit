@@ -16,22 +16,22 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Figure } from './types';
 import { skeleton, type FigureModel } from './figure';
 
-type Seg = 'hips' | 'lHand' | 'rHand' | 'spine' | 'spine1' | 'spine2' | 'neck' | 'head' | 'lArm' | 'lFore' | 'rArm' | 'rFore' | 'lThigh' | 'lShin' | 'rThigh' | 'rShin';
+type Seg = 'hips' | 'lHand' | 'rHand' | 'lFoot' | 'rFoot' | 'spine' | 'spine1' | 'spine2' | 'neck' | 'head' | 'lArm' | 'lFore' | 'rArm' | 'rFore' | 'lThigh' | 'lShin' | 'rThigh' | 'rShin';
 const BONES: Record<Seg, string> = {
-  hips: 'Hips', lHand: 'LeftHand', rHand: 'RightHand',
+  hips: 'Hips', lHand: 'LeftHand', rHand: 'RightHand', lFoot: 'LeftFoot', rFoot: 'RightFoot',
   spine: 'Spine', spine1: 'Spine1', spine2: 'Spine2', neck: 'Neck', head: 'Head',
   lArm: 'LeftArm', lFore: 'LeftForeArm', rArm: 'RightArm', rFore: 'RightForeArm',
   lThigh: 'LeftUpLeg', lShin: 'LeftLeg', rThigh: 'RightUpLeg', rShin: 'RightLeg',
 };
 /** Bone whose head marks where each segment ends (gives the rest direction). */
 const CHILD: Record<Seg, string> = {
-  hips: 'Spine', lHand: 'LeftHandMiddle1', rHand: 'RightHandMiddle1',
+  hips: 'Spine', lHand: 'LeftHandMiddle1', rHand: 'RightHandMiddle1', lFoot: 'LeftToeBase', rFoot: 'RightToeBase',
   spine: 'Spine1', spine1: 'Spine2', spine2: 'Neck', neck: 'Head', head: 'Head',
   lArm: 'LeftForeArm', lFore: 'LeftHand', rArm: 'RightForeArm', rFore: 'RightHand',
   lThigh: 'LeftLeg', lShin: 'LeftFoot', rThigh: 'RightLeg', rShin: 'RightFoot',
 };
 /** Parents before children, so world rotations are up to date when a child is set. */
-const ORDER: Seg[] = ['hips', 'spine', 'spine1', 'spine2', 'neck', 'head', 'lArm', 'lFore', 'lHand', 'rArm', 'rFore', 'rHand', 'lThigh', 'lShin', 'rThigh', 'rShin'];
+const ORDER: Seg[] = ['hips', 'spine', 'spine1', 'spine2', 'neck', 'head', 'lArm', 'lFore', 'lHand', 'rArm', 'rFore', 'rHand', 'lThigh', 'lShin', 'lFoot', 'rThigh', 'rShin', 'rFoot'];
 
 /** 2D angle → 3D direction in model space: forward is +Z, up is +Y (canvas y points down). */
 const dir = (deg: number, out = new THREE.Vector3()) => {
@@ -45,6 +45,57 @@ interface Rig {
   bones: Record<string, THREE.Bone>;
   /** World rotation of each bone and its rest direction, in the bind pose. */
   bind: Record<Seg, { q: THREE.Quaternion; d: THREE.Vector3 }>;
+  /** Sampled skin vertices of each contact region (feet, knees, hands, pelvis, back, head). */
+  contactVerts: { mesh: THREE.SkinnedMesh; verts: Partial<Record<Region, number[]>> }[];
+}
+
+type Region = 'lFoot' | 'rFoot' | 'lKnee' | 'rKnee' | 'lHand' | 'rHand' | 'hips' | 'back' | 'head';
+const REGION_BONES: Record<Region, RegExp> = {
+  lFoot: /^Left(Foot|ToeBase)$/, rFoot: /^Right(Foot|ToeBase)$/,
+  lKnee: /^LeftLeg$/, rKnee: /^RightLeg$/,
+  lHand: /^LeftHand/, rHand: /^RightHand/,
+  hips: /^Hips$/, back: /^Spine/, head: /^Head$|^Neck$/,
+};
+
+/** Groups the skin, clothes and shoes vertices by the bone that moves them most (every 3rd vertex). */
+function contactVertices(meshes: THREE.SkinnedMesh[]): Rig['contactVerts'] {
+  const out: Rig['contactVerts'] = [];
+  for (const m of meshes) {
+    if (!/body|base|shoes|suit/i.test(m.name)) continue;
+    const idx = m.geometry.attributes.skinIndex;
+    const wts = m.geometry.attributes.skinWeight;
+    const names = m.skeleton.bones.map((b) => b.name.replace(/^mixamorig:?/, ''));
+    const verts: Partial<Record<Region, number[]>> = {};
+    for (let i = 0; i < idx.count; i += 3) {
+      let best = 0;
+      let bone = 0;
+      for (let k = 0; k < 4; k++) if (wts.getComponent(i, k) > best) [best, bone] = [wts.getComponent(i, k), idx.getComponent(i, k)];
+      const region = (Object.keys(REGION_BONES) as Region[]).find((r) => REGION_BONES[r].test(names[bone]));
+      if (region) (verts[region] ??= []).push(i);
+    }
+    out.push({ mesh: m, verts });
+  }
+  return out;
+}
+
+const cv = new THREE.Vector3();
+/** Lowest point (world y) of each requested region, measured on the posed skin. */
+function regionMin(rig: Rig, regions: Region[]): Record<Region, number> {
+  const out = {} as Record<Region, number>;
+  for (const r of regions) out[r] = Infinity;
+  for (const { mesh, verts } of rig.contactVerts) {
+    mesh.updateMatrixWorld();
+    for (const r of regions) {
+      const list = verts[r];
+      if (!list) continue;
+      for (const i of list) {
+        mesh.getVertexPosition(i, cv);
+        cv.applyMatrix4(mesh.matrixWorld);
+        if (cv.y < out[r]) out[r] = cv.y;
+      }
+    }
+  }
+  return out;
 }
 
 let renderer: THREE.WebGLRenderer | null = null;
@@ -103,6 +154,7 @@ function fadeTexture() {
 
 let key: THREE.DirectionalLight;
 const stage = new THREE.Group();
+const wall = new THREE.Mesh();
 
 /** Yoga mat 183 × 61 cm, 5 mm thick with rounded corners, muted blue like a studio mat. */
 function makeMat() {
@@ -178,6 +230,12 @@ function setupScene() {
   contact.renderOrder = 1;
   stage.add(floor, mat, contact);
   scene.add(stage);
+  // a painted wall for exercises that lean on one (wall sit); placed behind the back when needed
+  wall.geometry = new THREE.BoxGeometry(2.6, 2.6, 0.08);
+  wall.material = new THREE.MeshStandardMaterial({ color: 0xd8d2c8, roughness: 0.95 });
+  wall.receiveShadow = true;
+  wall.visible = false;
+  scene.add(wall);
   loadPhotoTextures(floor.material as THREE.MeshStandardMaterial, mat.material as THREE.MeshStandardMaterial);
 }
 
@@ -281,7 +339,7 @@ function load(model: FigureModel) {
         const d = s === 'head' ? new THREE.Vector3(0, 1, 0).applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion())) : child.getWorldPosition(b).sub(a).normalize();
         bind[s] = { q: bone.getWorldQuaternion(new THREE.Quaternion()), d: d.clone() };
       }
-      rigs.set(model, { root, meshes, bones, bind });
+      rigs.set(model, { root, meshes, bones, bind, contactVerts: contactVertices(meshes) });
       listeners.forEach((cb) => cb());
     })
     .catch(() => {
@@ -298,6 +356,7 @@ export const figure3DReady = (model: FigureModel) => rigs.has(model);
 const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
 const yawQ = new THREE.Quaternion();
+const rollQ = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
 /**
@@ -356,7 +415,7 @@ export function humanize(f: Figure, sideways = false): Figure {
  * screen-right, the default for poses drawn from the side), 90 = body faces the camera, for
  * poses whose arms or legs move out to the sides (warrior II, jumping jacks…).
  */
-function pose(rig: Rig, raw: Figure, breath: number, yaw: number) {
+function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supports: Supports; seat: boolean; lying: boolean; headDown: boolean }) {
   const sideways = yaw > 45;
   let [torso, head, fua, ffa, nua, nfa, fth, fsh, nth, nsh, curve = 0] = humanize(raw, sideways);
   if (sideways) {
@@ -374,8 +433,9 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number) {
   const s2 = skeleton([torso, head, fua, ffa, nua, nfa, fth, fsh, nth, nsh, curve]);
   const floor2D = Math.max(...Object.values(s2).map((p) => p.y));
   const onFloor = (p: { y: number }) => floor2D - p.y < 10;
-  if (onFloor(s2.fKnee) && onFloor(s2.fFoot)) fsh = Math.sin((fsh * Math.PI) / 180) < 0 ? -90 : 90;
-  if (onFloor(s2.nKnee) && onFloor(s2.nFoot)) nsh = Math.sin((nsh * Math.PI) / 180) < 0 ? -90 : 90;
+  // the shin rises ~9° towards the foot: the shoe sole would otherwise hold the knee off the mat
+  if (onFloor(s2.fKnee) && onFloor(s2.fFoot)) fsh = Math.sin((fsh * Math.PI) / 180) < 0 ? -99 : 99;
+  if (onFloor(s2.nKnee) && onFloor(s2.nFoot)) nsh = Math.sin((nsh * Math.PI) / 180) < 0 ? -99 : 99;
   // side view sees the right side ("near" = right limbs); facing the camera, the limbs on
   // screen-right are the left ones
   const near = sideways ? { arm: 'lArm', fore: 'lFore', hand: 'lHand', thigh: 'lThigh', shin: 'lShin' } : { arm: 'rArm', fore: 'rFore', hand: 'rHand', thigh: 'rThigh', shin: 'rShin' };
@@ -401,8 +461,81 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number) {
     [near.arm]: dir(nua), [near.fore]: dir(nfa), [near.hand]: dir(nfa), [far.arm]: dir(fua), [far.fore]: dir(ffa), [far.hand]: dir(ffa),
     [near.thigh]: dir(nth), [near.shin]: dir(nsh), [far.thigh]: dir(fth), [far.shin]: dir(fsh),
   } as Record<Seg, THREE.Vector3>;
+  // Lying on the side (clam, side kick…): figures with a 13th value are drawn as if lying on the
+  // back, seen from above, so the hips and knees can bend forward; the top (left) leg then opens
+  // by figure[11] degrees, and the whole body rolls onto its right side by figure[12] × 90°.
+  // Sideways opening of the legs, which a side-view drawing cannot show: figure[13] turns both
+  // thighs out to their own side (cross-legged and bound-angle knees, a V with the legs up, a wide
+  // straddle), figure[14] the shins (negative = in towards the other side, as when the shins cross).
+  const thighOut = raw[13] ?? 0;
+  const shinOut = raw[14] ?? 0;
+  if (!sideways && (thighOut || shinOut)) {
+    const spread = (seg: Seg, side: 1 | -1, deg: number) => {
+      if (!deg) return;
+      const v = target[seg];
+      const axis = new THREE.Vector3().crossVectors(v, new THREE.Vector3(side, 0, 0));
+      if (axis.lengthSq() < 1e-6) return;
+      target[seg] = v.clone().applyAxisAngle(axis.normalize(), (deg * Math.PI) / 180);
+    };
+    // side view: the near (right) leg is on the -x side, the far (left) leg on +x
+    spread(near.thigh as Seg, -1, thighOut);
+    spread(far.thigh as Seg, 1, thighOut);
+    spread(near.shin as Seg, -1, shinOut);
+    spread(far.shin as Seg, 1, shinOut);
+  }
+  // figure[15]: both legs turned over to one side about the body's long axis (knees dropping
+  // to the floor in a supine twist); figure[16]: both arms opened out to their own side (a T)
+  const legsSide = raw[15] ?? 0;
+  const armsOut = raw[16] ?? 0;
+  if (!sideways && legsSide) {
+    const along = dir(torso).normalize();
+    for (const sg of [near.thigh, near.shin, far.thigh, far.shin] as Seg[]) target[sg] = target[sg].clone().applyAxisAngle(along, (legsSide * Math.PI) / 180);
+  }
+  if (!sideways && armsOut) {
+    const spreadArm = (seg: Seg, side: 1 | -1) => {
+      const v = target[seg];
+      const axis = new THREE.Vector3().crossVectors(v, new THREE.Vector3(side, 0, 0));
+      if (axis.lengthSq() > 1e-6) target[seg] = v.clone().applyAxisAngle(axis.normalize(), (armsOut * Math.PI) / 180);
+    };
+    spreadArm(near.arm as Seg, -1);
+    spreadArm(near.fore as Seg, -1);
+    spreadArm(near.hand as Seg, -1);
+    spreadArm(far.arm as Seg, 1);
+    spreadArm(far.fore as Seg, 1);
+    spreadArm(far.hand as Seg, 1);
+  }
+  // Facing the camera the drawing is the frontal plane, so knees can open sideways but not come
+  // forward: for sitting cross-legged facing the camera (seated side bend, mermaid) figure[13] turns
+  // the thighs and figure[14] the shins towards the front of the body, about the vertical axis.
+  if (sideways && (thighOut || shinOut)) {
+    const front = new THREE.Vector3(0, 0, 1).applyAxisAngle(UP, (-yaw * Math.PI) / 180);
+    const ahead = (seg: Seg, deg: number) => {
+      if (!deg) return;
+      const r = (deg * Math.PI) / 180;
+      const v = target[seg];
+      const s = v.clone().applyAxisAngle(UP, r).dot(front) >= v.clone().applyAxisAngle(UP, -r).dot(front) ? r : -r;
+      target[seg] = v.clone().applyAxisAngle(UP, s);
+    };
+    ahead(near.thigh as Seg, thighOut);
+    ahead(far.thigh as Seg, thighOut);
+    ahead(near.shin as Seg, shinOut);
+    ahead(far.shin as Seg, shinOut);
+  }
+  const roll = raw[12] ?? 0;
+  if (roll > 0) {
+    const abd = ((raw[11] ?? 0) * Math.PI) / 180;
+    if (abd) {
+      const Z = new THREE.Vector3(0, 0, 1);
+      const out = (v: THREE.Vector3) => v.clone().applyAxisAngle(Z, -abd).x >= v.clone().applyAxisAngle(Z, abd).x;
+      const s = out(target[far.thigh as Seg]) ? -abd : abd;
+      target[far.thigh as Seg] = target[far.thigh as Seg].clone().applyAxisAngle(Z, s);
+      target[far.shin as Seg] = target[far.shin as Seg].clone().applyAxisAngle(Z, s);
+    }
+    rollQ.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (roll * Math.PI) / 2);
+    for (const k of Object.keys(target) as Seg[]) target[k] = target[k].clone().applyQuaternion(rollQ);
+  } else rollQ.identity();
   // turn the body, then reset to the bind pose and turn each bone (parents first)
-  yawQ.setFromAxisAngle(UP, (-yaw * Math.PI) / 180);
+  yawQ.setFromAxisAngle(UP, (-yaw * Math.PI) / 180).multiply(rollQ);
   rig.root.quaternion.copy(yawQ);
   for (const b of Object.values(rig.bones)) b.quaternion.copy((b.userData.rest ??= b.quaternion.clone()) as THREE.Quaternion);
   rig.root.updateMatrixWorld(true);
@@ -417,46 +550,215 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number) {
     bone.quaternion.copy(parentQ.invert().multiply(desired));
     bone.updateMatrixWorld(true);
   };
-  for (const s of ORDER) aim(s, target[s]);
-  const handsDown = onFloor(s2.fHand) || onFloor(s2.nHand);
-  const feetDown = onFloor(s2.fFoot) || onFloor(s2.nFoot);
-  return { aim, handsDown, feetDown };
+  for (const s of ORDER) if (target[s]) aim(s, target[s]);
+  // supports per 3D side: which hands, knees and feet the pose puts on the floor
+  // a straight leg stretched out horizontally just above the floor (pigeon, sleeping swan) lies on it
+  const flatLeg = (th: number, sh: number, foot: { y: number }) =>
+    Math.abs(within(th, sh, -180, 180)) < 20 && Math.abs(Math.abs(within(th, 0, -180, 180)) - 90) < 20 && floor2D - foot.y < 20;
+  // a leg pointing down under the body stands on its foot even if the drawing puts the hands lower
+  const standingLeg = (th: number, foot: { y: number }) => Math.abs(within(th, 0, -180, 180)) < 35 && floor2D - foot.y < 40;
+  // an arm pointing straight down with the hand close to the floor (mountain climbers, the squat of a
+  // burpee, dips) is reaching for it: the drawing's limb lengths just leave it a little short
+  const reaching = (ua: number, fa: number, hand: { y: number }) =>
+    Math.abs(within(ua, 0, -180, 180)) < 40 && Math.abs(within(fa, 0, -180, 180)) < 40 && floor2D - hand.y < 32;
+  const nearSide = sideways ? 'Left' : 'Right';
+  const farSide = sideways ? 'Right' : 'Left';
+  const supports = {
+    [nearSide]: { hand: onFloor(s2.nHand) || reaching(nua, nfa, s2.nHand), knee: onFloor(s2.nKnee) && Math.abs(within(nth, nsh, -180, 180)) > 50, foot: onFloor(s2.nFoot) || flatLeg(nth, nsh, s2.nFoot) || standingLeg(nth, s2.nFoot) },
+    [farSide]: { hand: onFloor(s2.fHand) || reaching(fua, ffa, s2.fHand), knee: onFloor(s2.fKnee) && Math.abs(within(fth, fsh, -180, 180)) > 50, foot: onFloor(s2.fFoot) || flatLeg(fth, fsh, s2.fFoot) || standingLeg(fth, s2.fFoot) },
+  } as Supports;
+  // sitting: the pelvis itself rests on the floor (staff, seated folds, easy seat, boat…)
+  // side-lying (turned to the camera): the hip on the floor is part of the support
+  const trunkLow = Math.abs(Math.abs(within(torso, 0, -180, 180)) - 90) < 30 && floor2D < 26;
+  // side-lying, or lying with legs stretched along the floor (locust, superman): the pelvis rests on it
+  // (also with the legs lifted a little off it, as in swimming: thighs out along the body line)
+  const thighsOut = [fth, nth].every((th) => Math.abs(Math.abs(within(th, 0, -180, 180)) - 90) < 30);
+  // sitting with the knees opened sideways (cross-legged, bound angle): the pelvis is the base, even
+  // when the drawing puts the hands lower than the hips
+  const openSeat = thighOut > 20 && thighsOut && Math.abs(within(torso, 0, -180, 180)) > 90;
+  // pressing up on straight arms with the chest lifted (upward dog): the hips hover, only the hands
+  // and the tops of the feet bear weight (cobra keeps the elbows bent and the pelvis down)
+  const straightArms = Math.abs(within(nua, nfa, -180, 180)) < 20 && Math.abs(within(nua, 0, -180, 180)) < 40;
+  const pressUp = straightArms && (onFloor(s2.nHand) || onFloor(s2.fHand)) && Math.abs(Math.abs(within(torso, 0, -180, 180)) - 90) > 30 && Math.abs(within(torso, 0, -180, 180)) < 160;
+  // a plank on the forearms or hands: legs continue the trunk in one line and the arms hold it up
+  const plankLine = Math.abs(within(nth, torso - 180, -180, 180)) < 10 && (onFloor(s2.nHand) || onFloor(s2.fHand));
+  const seat = !pressUp && !plankLine && (floor2D < 14 || openSeat || (trunkLow && (sideways || thighsOut || flatLeg(fth, fsh, s2.fFoot) || flatLeg(nth, nsh, s2.nFoot))));
+  // lying flat: shoulders on the floor with the trunk near horizontal (not bridge or shoulder stand)
+  const trunkFlat = Math.abs(Math.abs(within(torso, 0, -180, 180)) - 90) < 30;
+  const lying = onFloor(s2.shoulder) && trunkFlat;
+  const headDown = onFloor(s2.headC);
+  // later solver passes keep the supports read from the original drawing
+  // hands only reaching for the floor: they never make the trunk fold to get there
+  // (kneeling upright, as in camel; a plank-like or reclined trunk still lowers itself to the hands)
+  const upright = Math.abs(within(torso, 180, -180, 180)) < 60 && (onFloor(s2.nKnee) || onFloor(s2.fKnee));
+  const reachOnly = upright && ((!onFloor(s2.nHand) && reaching(nua, nfa, s2.nHand)) || (!onFloor(s2.fHand) && reaching(fua, ffa, s2.fHand)));
+  if (roll > 0.5) {
+    const none = () => ({ hand: false, knee: false, foot: false });
+    return { aim, reachOnly: false, supports: fixed?.supports ?? ({ Left: none(), Right: none() } as Supports), seat: true, lying: true, headDown: false };
+  }
+  return { aim, reachOnly, supports: fixed?.supports ?? supports, seat: fixed?.seat ?? seat, lying: fixed?.lying ?? lying, headDown: fixed?.headDown ?? headDown };
+}
+
+type Side = 'Left' | 'Right';
+type Supports = Record<Side, { hand: boolean; knee: boolean; foot: boolean }>;
+type Aim = (s: Seg, to: THREE.Vector3) => void;
+
+/** Joint centres sit inside the mesh: distance from them to the skin/sole that touches the floor. */
+const KNEE_R = 0.055;
+const ANKLE_H = 0.085;
+const TOE_H = 0.035;
+
+/** Hip joint height above the floor when sitting on the sit bones. */
+const SEAT_H = 0.11;
+/** Spine2 (upper back) centre height above the floor when lying on the back or front. */
+const BACK_H = 0.12;
+
+/**
+ * Turns a whole leg (thigh and shin together, knee angle unchanged) about the hip so that its
+ * contact point (knee if kneeling, else the sole) lands on the floor.
+ */
+function swingLeg(rig: Rig, side: Side, sup: Supports[Side], floor: number, aim: Aim) {
+  const B = rig.bones;
+  const seg = side === 'Left' ? (['lThigh', 'lShin'] as const) : (['rThigh', 'rShin'] as const);
+  const Hp = wp(B[side + 'UpLeg']);
+  const K = wp(B[side + 'Leg']);
+  const A = wp(B[side + 'Foot']);
+  const thighDir = K.clone().sub(Hp).normalize();
+  const shinDir = A.clone().sub(K).normalize();
+  // the point that must touch, and how high its joint centre sits above the skin
+  const P = sup.knee ? K : A;
+  // how far the joint centre sits above that region's lowest skin point, right now
+  // (kneeling: the lowest of knee and foot, so a foot hanging below the knee also ends on the mat)
+  const lift = P.y - legContact(rig, side, sup);
+  const v = P.clone().sub(Hp);
+  const len = v.length();
+  const dy = floor + lift - Hp.y;
+  if (Math.abs(dy) >= len) return;
+  const hz = new THREE.Vector3(v.x, 0, v.z);
+  if (hz.lengthSq() < 1e-6) hz.set(0, 0, 1);
+  hz.normalize().multiplyScalar(Math.sqrt(len * len - dy * dy));
+  const target = hz.add(new THREE.Vector3(0, dy, 0)).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(v.normalize(), target);
+  aim(seg[0], thighDir.applyQuaternion(q));
+  // kneeling: the shin keeps lying back along the mat instead of turning with the thigh into it
+  aim(seg[1], sup.knee ? shinDir : shinDir.applyQuaternion(q));
 }
 
 /**
- * Feet that should stand on the floor (lying with knees bent, bridge, squats) but end up in the
- * air because 3D limb lengths differ from the drawing: bend the knee (two-bone IK) until the
- * ankle sits at shoe height above the floor. The knee keeps bending the way it already bends.
+ * Weight-bearing feet lie on the floor instead of following the shin (which would dig the toes
+ * into the mat or lift them): standing, the foot points forward along the body; kneeling or lying
+ * face down (knee also on the floor), it stretches back with the top of the foot on the mat.
  */
-function groundFeet(rig: Rig, floor: number, aim: (s: Seg, to: THREE.Vector3) => void): boolean {
+/** The front of the pelvis points at the floor (lying face down). */
+function facingDown(rig: Rig) {
   const B = rig.bones;
-  let moved = false;
+  const lr = wp(B.LeftUpLeg).sub(wp(B.RightUpLeg));
+  const up = wp(B.Spine).sub(wp(B.Hips));
+  // …and the legs lie out behind it (not a squat or a fold, where the pelvis also tips forward)
+  const thighsFlat = (['Left', 'Right'] as const).every((sd) => Math.abs(wp(B[sd + 'Leg']).sub(wp(B[sd + 'UpLeg'])).normalize().y) < 0.5);
+  return thighsFlat && lr.cross(up).normalize().y < -0.5;
+}
+
+function placeFeet(rig: Rig, sup: Supports, aim: Aim, yaw: number) {
+  const B = rig.bones;
+  const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(UP, (-yaw * Math.PI) / 180);
+  const prone = facingDown(rig);
   for (const side of ['Left', 'Right'] as const) {
-    const Hp = wp(B[`${side}UpLeg`]);
-    const K = wp(B[`${side}Leg`]);
-    const A = wp(B[`${side}Foot`]);
-    const T = new THREE.Vector3(A.x, floor + 0.085, A.z);
-    // only feet hovering a little: lifted legs (leg raises, kicks) stay as they are
-    if (A.y - T.y < 0.03 || A.y - T.y > 0.45) continue;
-    const a = Hp.distanceTo(K);
-    const b = K.distanceTo(A);
-    const toT = T.clone().sub(Hp);
-    const dist = Math.min(toT.length(), (a + b) * 0.999);
-    const dirHT = toT.normalize();
-    const cosA = (a * a + dist * dist - b * b) / (2 * a * dist);
-    const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
-    const pole = K.clone().sub(Hp);
-    pole.addScaledVector(dirHT, -pole.dot(dirHT));
-    if (pole.lengthSq() < 1e-6) continue;
-    pole.normalize();
-    const knee = Hp.clone().addScaledVector(dirHT, cosA * a).addScaledVector(pole, sinA * a);
-    const ankle = Hp.clone().addScaledVector(dirHT, dist);
-    const seg = side === 'Left' ? (['lThigh', 'lShin'] as const) : (['rThigh', 'rShin'] as const);
-    aim(seg[0], knee.clone().sub(Hp).normalize());
-    aim(seg[1], ankle.sub(knee).normalize());
-    moved = true;
+    const seg = side === 'Left' ? 'lFoot' : 'rFoot';
+    if (!sup[side].foot) {
+      // face down with the legs lifted (superman, swimming): toes pointed back, in line with the shin
+      const shin = wp(B[side + 'Foot']).sub(wp(B[side + 'Leg'])).normalize();
+      if (prone && Math.abs(shin.y) < 0.7) aim(seg, shin.add(new THREE.Vector3(0, -0.25, 0)).normalize());
+      continue;
+    }
+    if (sup[side].knee) {
+      const shin = wp(B[side + 'Foot']).sub(wp(B[side + 'Leg']));
+      const back = new THREE.Vector3(shin.x, 0, shin.z);
+      if (back.lengthSq() < 1e-6) back.copy(forward).negate();
+      aim(seg, back.normalize());
+    } else {
+      const shin = wp(B[side + 'Foot']).sub(wp(B[side + 'Leg'])).normalize();
+      if (Math.abs(shin.y) > 0.6) aim(seg, forward.clone().add(new THREE.Vector3(0, -0.2, 0)).normalize());
+      else if (prone) {
+        // lying face down (superman, locust, cobra): the top of the foot on the mat, toes back
+        aim(seg, new THREE.Vector3(shin.x, 0, shin.z).normalize().add(new THREE.Vector3(0, -0.15, 0)).normalize());
+      } else {
+        // leg along the floor: the foot stands up from the heel, toes to the ceiling
+        aim(seg, new THREE.Vector3(0, 1, 0).addScaledVector(shin, 0.35).normalize());
+      }
+    }
   }
-  return moved;
+}
+
+function legContact(rig: Rig, side: Side, sup: Supports[Side]) {
+  const p = side === 'Left' ? 'l' : 'r';
+  const regions: Region[] = [];
+  const B = rig.bones;
+  // a straight leg lying along the floor touches it with the calf as well as the heel
+  const along = sup.foot && Math.abs(wp(B[side + 'Foot']).sub(wp(B[side + 'UpLeg'])).normalize().y) < 0.5;
+  if (sup.knee || along) regions.push((p + 'Knee') as Region);
+  if (sup.foot) regions.push((p + 'Foot') as Region);
+  const m = regionMin(rig, regions);
+  // (the calf is soft: lying on it, it flattens a couple of centimetres so the heel touches too)
+  if (along && !sup.knee) m[(p + 'Knee') as Region] += 0.025;
+  return Math.min(...regions.map((r) => m[r]));
+}
+
+/**
+ * Settles the legs that bear weight on one common floor. The floor is set by the support that
+ * cannot come lower (a straight standing leg, the front foot of a lunge); supports that end up
+ * below it are lifted: a kneeling knee by turning the thigh, a foot by bending the knee (two-bone
+ * IK). Without the drawing's exact limb proportions, this is what keeps every support on the mat
+ * instead of one touching and the others floating. Returns the floor, or null if no leg supports.
+ */
+function settleLegs(rig: Rig, sup: Supports, aim: Aim, seat: boolean, lying: boolean, headDown: boolean, forced?: number): number | null {
+  const B = rig.bones;
+  const sides = (['Left', 'Right'] as const).filter((sd) => sup[sd].knee || sup[sd].foot);
+  // the rigid support sets the floor: the pelvis when sitting, else the leg that is lowest-reaching
+  // rigid supports that cannot be lowered: the pelvis when sitting, back and head when lying
+  const body: number[] = [];
+  const bm = regionMin(rig, ['hips', 'back', 'head']);
+  if (seat) body.push(bm.hips);
+  if (lying) body.push(bm.back);
+  if (headDown) body.push(bm.head);
+  const bodyFloor = forced ?? (body.length ? Math.max(...body) : null);
+  if (!sides.length) return bodyFloor;
+  const floor = bodyFloor ?? Math.max(...sides.map((sd) => legContact(rig, sd, sup[sd])));
+  for (const side of sides) {
+    const gap = legContact(rig, side, sup[side]) - floor;
+    if (Math.abs(gap) < 0.008 || (bodyFloor === null && gap > 0)) continue;
+    // a straight leg moves as one piece from the hip; it never bends to reach the floor
+    const kneeAngle = wp(B[side + 'Leg']).sub(wp(B[side + 'UpLeg'])).normalize().angleTo(wp(B[side + 'Foot']).sub(wp(B[side + 'Leg'])).normalize());
+    if (gap > 0 || sup[side].knee || kneeAngle < 0.45) {
+      // the whole leg swings about the hip (straight legs when sitting, kneeling thighs)
+      swingLeg(rig, side, sup[side], floor, aim);
+      continue;
+    }
+    const seg = side === 'Left' ? (['lThigh', 'lShin'] as const) : (['rThigh', 'rShin'] as const);
+    const Hp = wp(B[side + 'UpLeg']);
+    const K = wp(B[side + 'Leg']);
+    const A = wp(B[side + 'Foot']);
+    const a = Hp.distanceTo(K);
+    {
+      // standing foot: bend the knee until the sole is on the floor
+      const b = K.distanceTo(A);
+      const footReg = (side === 'Left' ? 'lFoot' : 'rFoot') as Region;
+      const T = new THREE.Vector3(A.x, floor + (A.y - regionMin(rig, [footReg])[footReg]), A.z);
+      const toT = T.clone().sub(Hp);
+      const dist = Math.min(toT.length(), (a + b) * 0.999);
+      const dirHT = toT.normalize();
+      const cosA = (a * a + dist * dist - b * b) / (2 * a * dist);
+      const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+      const pole = K.clone().sub(Hp);
+      pole.addScaledVector(dirHT, -pole.dot(dirHT));
+      if (pole.lengthSq() < 1e-6) pole.set(0, 0, 1);
+      pole.normalize();
+      const knee = Hp.clone().addScaledVector(dirHT, cosA * a).addScaledVector(pole, sinA * a);
+      aim(seg[0], knee.clone().sub(Hp).normalize());
+      aim(seg[1], Hp.clone().addScaledVector(dirHT, dist).sub(knee).normalize());
+    }
+  }
+  return floor;
 }
 
 const wp = (b: THREE.Object3D) => b.getWorldPosition(new THREE.Vector3());
@@ -467,20 +769,25 @@ const wp = (b: THREE.Object3D) => b.getWorldPosition(new THREE.Vector3());
  * legs than the flat figure's, so the hand would float: a two-bone IK bends the elbow, or
  * straightens the arm, until the wrist sits a palm's thickness above the floor.
  */
-function groundHands(rig: Rig, floor: number, aim: (s: Seg, to: THREE.Vector3) => void): boolean {
+function groundHands(rig: Rig, floor: number, aim: Aim, sup: Supports, tips = true): { moved: boolean; short: number } {
   const B = rig.bones;
   let moved = false;
+  let short = 0;
   for (const side of ['Left', 'Right'] as const) {
+    if (!sup[side].hand) continue;
     const S = wp(B[`${side}Arm`]);
     const E = wp(B[`${side}ForeArm`]);
     const H = wp(B[`${side}Hand`]);
     const a = S.distanceTo(E);
     const b = E.distanceTo(H);
     // wrist a few cm above the floor: with the palm laid flat, the palm then rests on it
-    const T = new THREE.Vector3(H.x, floor + 0.035, H.z);
+    const handReg = (side === 'Left' ? 'lHand' : 'rHand') as Region;
+    // keep the wrist-to-palm offset of a flat hand (about a palm's thickness)
+    const T = new THREE.Vector3(H.x, floor + Math.max(0.03, Math.min(0.08, H.y - regionMin(rig, [handReg])[handReg])), H.z);
     // only hands that should be on the floor: close to it already, or hanging below the shoulder
-    if (H.y - T.y > 0.35 || H.y < T.y - 0.01) continue;
     const toT = T.clone().sub(S);
+    const need = toT.length();
+    let sideShort = need - (a + b) * 0.97;
     const dist = Math.min(toT.length(), (a + b) * 0.999);
     const dirST = toT.normalize();
     // elbow angle from the law of cosines; bend in the plane of the current elbow
@@ -499,10 +806,33 @@ function groundHands(rig: Rig, floor: number, aim: (s: Seg, to: THREE.Vector3) =
     // palm flat on the mat, fingers pointing the way the forearm leans (or forward)
     const flat = new THREE.Vector3(fore.x, 0, fore.z);
     if (flat.lengthSq() < 0.01) flat.set(0, 0, 1);
-    aim(seg[2], flat.normalize().add(new THREE.Vector3(0, -0.08, 0)).normalize());
+    aim(seg[2], flat.normalize());
+    if (tips && need > (a + b) * 0.999) {
+      // too far for a flat palm (half moon, deep folds): the fingertips reach down to the mat,
+      // turned just enough that they touch it without going through
+      const down = new THREE.Vector3(0, -1, 0);
+      const dirAt = (k: number) => flat.clone().multiplyScalar(1 - k).addScaledVector(down, k).normalize();
+      const gapAt = (k: number) => {
+        aim(seg[2], dirAt(k));
+        return regionMin(rig, [handReg])[handReg] - floor;
+      };
+      let gap = gapAt(0.85);
+      if (gap < 0) {
+        let lo = 0;
+        let hi = 0.85;
+        for (let i = 0; i < 6; i++) {
+          const k = (lo + hi) / 2;
+          if (gapAt(k) < 0) hi = k;
+          else lo = k;
+        }
+        gap = Math.max(0, gapAt(lo));
+      }
+      sideShort = gap;
+    }
+    short = Math.max(short, sideShort);
     moved = true;
   }
-  return moved;
+  return { moved, short };
 }
 const tmpV = new THREE.Vector3();
 
@@ -516,10 +846,231 @@ export interface View3D {
   orbit?: number;
   /** Camera tilt down in degrees (higher for floor work). */
   elev?: number;
+  /** Show a wall right behind the back (wall sit). */
+  wall?: boolean;
+}
+
+/** How far the back of the body reaches, along the direction it faces away from (world). */
+function backMost(rig: Rig, back: THREE.Vector3, regions: Region[] = ['hips', 'back', 'head']) {
+  let m = -Infinity;
+  for (const { mesh, verts } of rig.contactVerts) {
+    for (const r of regions) {
+      for (const i of verts[r] ?? []) {
+        mesh.getVertexPosition(i, cv);
+        cv.applyMatrix4(mesh.matrixWorld);
+        m = Math.max(m, cv.dot(back));
+      }
+    }
+  }
+  return m;
 }
 
 /** Per-canvas camera state, so framing glides instead of jumping when the pose changes. */
 const smooth = new WeakMap<CanvasRenderingContext2D, { d: number; t: THREE.Vector3 }>();
+
+/** Posed bounds (skinned) in world space, into `box`. */
+function measure(rig: Rig) {
+  box.makeEmpty();
+  for (const m of rig.meshes) {
+    m.computeBoundingBox();
+    if (m.boundingBox) box.union(mb.copy(m.boundingBox).applyMatrix4(m.matrixWorld));
+  }
+}
+
+/**
+ * Poses the rig and settles it on the floor: weight-bearing legs share one floor (settleLegs),
+ * weight-bearing hands reach it, tipping the torso down if the arms are too short to.
+ */
+let solvedFloor = 0;
+type Solved = { q: THREE.Quaternion[]; root: THREE.Quaternion; floor: number; sup: Supports };
+const solvedCache = new Map<string, Solved>();
+/** Solving takes a few ms (skin measurements): reps loop through the same poses, so keep them. */
+function solve(rig: Rig, f: Figure, breath: number, yaw: number): Supports {
+  const key = rig.root.uuid + '|' + yaw.toFixed(0) + '|' + breath.toFixed(1) + '|' + f.map((x) => x.toFixed(0)).join(',');
+  const hit = solvedCache.get(key);
+  const bones = Object.values(rig.bones);
+  if (hit) {
+    rig.root.quaternion.copy(hit.root);
+    bones.forEach((b, i) => b.quaternion.copy(hit.q[i]));
+    rig.root.updateMatrixWorld(true);
+    measure(rig);
+    solvedFloor = hit.floor;
+    return hit.sup;
+  }
+  const sup = solveNow(rig, f, breath, yaw);
+  if (solvedCache.size > 400) solvedCache.delete(solvedCache.keys().next().value!);
+  solvedCache.set(key, { q: bones.map((b) => b.quaternion.clone()), root: rig.root.quaternion.clone(), floor: solvedFloor, sup });
+  return sup;
+}
+
+function solveNow(rig: Rig, f: Figure, breath: number, yaw: number): Supports {
+  let fig = f;
+  let fixed: { supports: Supports; seat: boolean; lying: boolean; headDown: boolean } | undefined;
+  let lifted = false;
+  // hands put down by the solver (not by the drawing) only reach: the trunk never bends for them
+  let handsAdded = false;
+  for (let pass = 0; ; pass++) {
+    const { aim, supports, seat, lying, headDown, reachOnly } = pose(rig, fig, breath, yaw, fixed);
+    if (pass === 0 && reachOnly) handsAdded = true;
+    fixed ??= { supports, seat, lying, headDown };
+    // feet flat first (the floor is measured from the soles), and again after the legs move
+    placeFeet(rig, supports, aim, yaw);
+    settleLegs(rig, supports, aim, seat, lying, headDown);
+    placeFeet(rig, supports, aim, yaw);
+    let legFloor = settleLegs(rig, supports, aim, seat, lying, headDown);
+    placeFeet(rig, supports, aim, yaw);
+    // pelvis, back and head cannot pass through the mat: if one dips below the floor the legs set,
+    // the floor comes down to it and the legs settle again on that level
+    if (legFloor !== null) {
+      const bm = regionMin(rig, ['hips', 'back', 'head']);
+      const low = Math.min(bm.hips, bm.back, bm.head);
+      // on the feet only (folds, down dog, squats): the trunk straightens rather than the legs lifting
+      const standing = !seat && !lying && (supports.Left.foot || supports.Right.foot) && !supports.Left.knee && !supports.Right.knee;
+      if (standing && low < legFloor - 0.02 && pass < 6) {
+        // standing on the feet (deep folds): the head would go under the mat, so fold a little less
+        const up = ((Math.asin(Math.min(1, (legFloor - low) / 0.55)) * 180) / Math.PI) * 1.1;
+        const t = fig[0];
+        fig = [t > 0 ? t + up : t - up, ...fig.slice(1)] as Figure;
+        lifted = true;
+        continue;
+      }
+      if (!standing && low < legFloor - 0.02) {
+        legFloor = settleLegs(rig, supports, aim, seat, lying, headDown, low);
+        placeFeet(rig, supports, aim, yaw);
+      }
+    }
+    measure(rig);
+    // the floor is where the supports were settled; the mesh may dip a few mm into the mat
+    // (soles, toes), which reads as contact, rather than lifting every other support off it
+    solvedFloor = legFloor ?? box.min.y;
+    // a knee or foot the drawing keeps off the floor but that ends up through the mat (plow,
+    // pigeon's back leg, a wide jump) rests on it instead: it becomes a support and the legs settle again
+    if (pass < 6 && fixed) {
+      const lm = regionMin(rig, ['lKnee', 'rKnee', 'lFoot', 'rFoot']);
+      let added = false;
+      for (const [side, p] of [['Left', 'l'], ['Right', 'r']] as const) {
+        const B = rig.bones;
+        const bent = wp(B[side + 'Leg']).sub(wp(B[side + 'UpLeg'])).normalize().angleTo(wp(B[side + 'Foot']).sub(wp(B[side + 'Leg'])).normalize()) > 0.87;
+        for (const part of ['knee', 'foot'] as const) {
+          const reg = (p + (part === 'knee' ? 'Knee' : 'Foot')) as Region;
+          // a straight leg lies on calf and heel: it rests on the foot, never on a kneeling knee
+          const as = part === 'knee' && !bent ? 'foot' : part;
+          // (a kneecap only counts when the knee itself is down there, not a shin standing on its foot)
+          const kneeLow = part !== 'knee' || wp(B[side + 'Leg']).y < solvedFloor + 0.1;
+          if (kneeLow && !fixed.supports[side][as] && lm[reg] < solvedFloor - 0.02) {
+            fixed.supports[side][as] = true;
+            added = true;
+          }
+        }
+      }
+      if (added) continue;
+    }
+    if (lying && pass < 3) {
+      // the rig's neck lets a lying head drop below the back: raise it until it rests on the mat
+      const m = regionMin(rig, ['head']);
+      const dip = solvedFloor - m.head;
+      if (dip > 0.02) {
+        const up = ((Math.asin(Math.min(1, dip / 0.22)) * 180) / Math.PI) * 1.1;
+        fig = [fig[0], fig[1] + (within(180, fig[1], -180, 180) >= 0 ? up : -up), ...fig.slice(2)] as Figure;
+        continue;
+      }
+    }
+    // hands that are not supports must not go through the mat either: stop them on it
+    const hm = regionMin(rig, ['lHand', 'rHand']);
+    // an arm hanging down with the hand just off the mat (dips, sitting, a deep squat) leans on it:
+    // nobody holds a hand floating a few centimetres above the floor
+    if (pass < 6 && fixed && legFloor !== null) {
+      let added = false;
+      for (const [side, h] of [['Left', hm.lHand], ['Right', hm.rHand]] as const) {
+        const hanging = wp(rig.bones[side + 'Arm']).y - wp(rig.bones[side + 'Hand']).y > 0.2;
+        if (!fixed.supports[side].hand && hanging && h < solvedFloor + 0.06) {
+          fixed.supports[side].hand = true;
+          handsAdded = true;
+          added = true;
+        }
+      }
+      if (added) continue;
+    }
+    const stray = {
+      Left: { hand: !supports.Left.hand && hm.lHand < solvedFloor - 0.015, knee: false, foot: false },
+      Right: { hand: !supports.Right.hand && hm.rHand < solvedFloor - 0.015, knee: false, foot: false },
+    };
+    if (stray.Left.hand || stray.Right.hand) {
+      groundHands(rig, solvedFloor, aim, stray);
+      measure(rig);
+    }
+    if (!supports.Left.hand && !supports.Right.hand) return supports;
+    const legless = legFloor === null;
+    // hands and feet on the floor with both legs reaching back (down dog, bear): palms stay flat
+    // and the feet walk back a little if the arms are short, lowering hips and shoulders
+    const t = fig[0];
+    const back = (th: number) => within(th, 0, -180, 180) * Math.sign(t) < -10;
+    const dogLike = Math.abs(within(t, 0, -180, 180)) < 80 && !seat && !lying && supports.Left.foot && supports.Right.foot && !supports.Left.knee && !supports.Right.knee && back(fig[6]) && back(fig[8]);
+    const { moved, short } = groundHands(rig, solvedFloor, aim, supports, !dogLike);
+    if (moved) measure(rig);
+    // only the hands on the floor (arm balances): the floor is where the palms are
+    if (legless) {
+      const h = regionMin(rig, ['lHand', 'rHand']);
+      solvedFloor = Math.min(supports.Left.hand ? h.lHand : Infinity, supports.Right.hand ? h.rHand : Infinity);
+      return supports;
+    }
+    if (short < 0.01 || pass >= 8 || headDown || lifted || handsAdded) return supports;
+    if (dogLike) {
+      const th = (Math.abs(within(fig[6], 0, -180, 180)) * Math.PI) / 180;
+      const d = Math.min(12, ((short / (0.85 * Math.max(0.35, Math.sin(th)))) * 180) / Math.PI);
+      const sg = t > 0 ? -d : d;
+      fig = [...fig.slice(0, 6), fig[6] + sg, fig[7] + sg, fig[8] + sg, fig[9] + sg, ...fig.slice(10)] as Figure;
+      continue;
+    }
+    // folding further would put the head on the mat: the hands stay as close as they got
+    if (regionMin(rig, ['head']).head < solvedFloor + 0.12) return supports;
+    const tip = ((short / 0.45) * 180) / Math.PI;
+    // turn the trunk towards the floor (towards 0° = pointing down) to lower the shoulders
+    fig = [t > 0 ? t - tip : t + tip, fig[1] + (t > 0 ? -tip : tip), ...fig.slice(2)] as Figure;
+  }
+}
+
+const REGIONS: Record<string, RegExp> = REGION_BONES;
+
+/**
+ * For checks: poses a figure and returns, for each body region, the height of its lowest
+ * vertex above the floor (metres). A region that should rest on the mat must be ~0.
+ */
+export function inspectContacts(f: Figure, model: FigureModel = 'female', yaw = 0): { heights: Record<string, number>; supports: string[] } | null {
+  const rig = rigs.get(model);
+  if (!rig) return null;
+  const sup = solve(rig, f, 0, yaw);
+  const ground = solvedFloor;
+  const out: Record<string, number> = {};
+  const v = new THREE.Vector3();
+  for (const m of rig.meshes) {
+    if (!/body|base/i.test(m.name) && !/shoes|suit/i.test(m.name)) continue;
+    const pos = m.geometry.attributes.position;
+    const idx = m.geometry.attributes.skinIndex;
+    const wts = m.geometry.attributes.skinWeight;
+    for (let i = 0; i < pos.count; i += 2) {
+      // region of the bone with the largest weight
+      let best = 0;
+      let bone = 0;
+      for (let k = 0; k < 4; k++) if (wts.getComponent(i, k) > best) [best, bone] = [wts.getComponent(i, k), idx.getComponent(i, k)];
+      const name = m.skeleton.bones[bone].name.replace(/^mixamorig:?/, '');
+      const region = Object.keys(REGIONS).find((r) => REGIONS[r].test(name));
+      if (!region) continue;
+      m.getVertexPosition(i, v);
+      v.applyMatrix4(m.matrixWorld);
+      out[region] = Math.min(out[region] ?? Infinity, v.y - ground);
+    }
+  }
+  for (const k of Object.keys(out)) out[k] = Math.round(out[k] * 100) / 100;
+  const supports: string[] = [];
+  for (const sd of ['Left', 'Right'] as const) {
+    const p = sd === 'Left' ? 'l' : 'r';
+    if (sup[sd].hand) supports.push(p + 'Hand');
+    if (sup[sd].knee) supports.push(p + 'Knee');
+    if (sup[sd].foot) supports.push(p + 'Foot');
+  }
+  return { heights: out, supports };
+}
 
 export function drawFigure3D(ctx: CanvasRenderingContext2D, f: Figure, w: number, h: number, model: FigureModel, breath = 0, floorAt = 0.84, view: View3D = {}): boolean {
   const r = getRenderer();
@@ -530,31 +1081,31 @@ export function drawFigure3D(ctx: CanvasRenderingContext2D, f: Figure, w: number
   }
   scene.add(rig.root);
   for (const other of rigs.values()) if (other !== rig) scene.remove(other.root);
-  const { aim, handsDown, feetDown } = pose(rig, f, breath, view.yaw ?? 0);
-
-  // posed bounds (skinned) in world space
-  const measure = () => {
-    box.makeEmpty();
-    for (const m of rig.meshes) {
-      m.computeBoundingBox();
-      if (m.boundingBox) box.union(mb.copy(m.boundingBox).applyMatrix4(m.matrixWorld));
-    }
-  };
-  measure();
-  // weight-bearing hands reach the real floor (the lowest point of the body), then re-measure
-  if (feetDown && groundFeet(rig, box.min.y, aim)) measure();
-  if (handsDown && groundHands(rig, box.min.y, aim)) measure();
+  solve(rig, f, breath, view.yaw ?? 0);
   // the floor and mat sit under the body, wherever the pose puts it
-  const ground = box.min.y;
+  const ground = solvedFloor;
   contact.scale.set(Math.max(0.5, box.max.x - box.min.x) * 1.1, Math.max(0.5, box.max.z - box.min.z) * 1.1, 1);
   const centre = new THREE.Vector3((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2);
   stage.position.set(centre.x, ground, centre.z);
   key.target.position.set(centre.x, ground, centre.z);
   key.position.set(centre.x - 2.5, ground + 4.5, centre.z + 2.2);
+  wall.visible = !!view.wall;
+  if (view.wall) {
+    // the wall touches what leans on it: the back when sitting against it (wall sit), the backs of
+    // the legs when lying with the legs up it (legs up the wall), its face at their furthest point
+    const lyingDown = regionMin(rig, ['back']).back - ground < 0.15;
+    const back = new THREE.Vector3(0, 0, lyingDown ? 1 : -1).applyAxisAngle(UP, (-(view.yaw ?? 0) * Math.PI) / 180);
+    const at = backMost(rig, back, lyingDown ? ['lKnee', 'rKnee', 'lFoot', 'rFoot', 'hips'] : undefined) + 0.04 + 0.002;
+    wall.position.set(centre.x, ground + 1.3, centre.z).addScaledVector(back, at - centre.clone().dot(back));
+    wall.rotation.y = (-(view.yaw ?? 0) * Math.PI) / 180;
+  }
 
   // camera on a sphere around the body: orbit 0 looks along +X (right side, forward = screen-right),
   // elevation tilts it down like a camera on a tripod above chest height
-  const a = ((view.orbit ?? 0) * Math.PI) / 180;
+  // a wall at the feet (legs up the wall) would hide the body from the usual front-side cameras:
+  // look from the head side instead
+  const wallAtFeet = !!view.wall && regionMin(rig, ['back']).back - ground < 0.15;
+  const a = ((wallAtFeet ? -Math.abs(view.orbit ?? 0) - 20 : (view.orbit ?? 0)) * Math.PI) / 180;
   const e = ((view.elev ?? 10) * Math.PI) / 180;
   const fwd = new THREE.Vector3(Math.cos(a) * Math.cos(e), -Math.sin(e), -Math.sin(a) * Math.cos(e));
   const right = new THREE.Vector3().crossVectors(fwd, UP).normalize();

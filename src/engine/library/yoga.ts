@@ -68,7 +68,7 @@ const YOGA_CORE: Move[] = [
     name: n('Cobra', 'Cobra', 'Cobra', 'Cobra', 'Kobra', 'Cobra'),
     cue: c('Hands under the shoulders, elbows close, press the pubic bone down and lift the chest using the back muscles.', 'Mani sotto le spalle, gomiti vicini, premi il pube a terra e solleva il petto usando i muscoli della schiena.'),
     short: c('Lift the chest gently.', 'Solleva dolcemente il petto.'),
-    focus: ['backbends', 'lowerBack', 'chestOpening'], styles: ['vinyasa', 'hatha', 'gentle', 'sunSalutation'], frames: [[125, 150, -25, 5, -25, 5, -90, -90, -90, -90, -8]],
+    focus: ['backbends', 'lowerBack', 'chestOpening'], styles: ['vinyasa', 'hatha', 'gentle', 'sunSalutation'], frames: [[125, 150, -55, 55, -55, 55, -90, -90, -90, -90, -8]],
   }),
   y({
     id: 'downDog', sanskrit: 'Adho Mukha Svanasana', position: 'inverted', level: 1, intensity: 3,
@@ -238,7 +238,7 @@ const YOGA_CORE: Move[] = [
     name: n('Thread the Needle', 'Infila l\'ago', 'Enhebrar la aguja', 'Enfiler l\'aiguille', 'Nadelöhr', 'Passar a agulha'),
     cue: c('From tabletop, slide one arm under the other and rest the shoulder and temple down, opening the upper back.', 'Dal tavolo, fai scivolare un braccio sotto l\'altro e appoggia spalla e tempia, aprendo la parte alta della schiena.'),
     short: c('Twist the upper back.', 'Ruota la parte alta della schiena.'),
-    focus: ['twists', 'shoulders', 'neckUpperBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[80, 70, 0, 0, 95, 95, 0, -90, 0, -90]],
+    focus: ['twists', 'shoulders', 'neckUpperBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[46, 40, 170, 170, 95, 95, 0, -90, 0, -90]],
   }),
   // ───────────── seated ─────────────
   y({
@@ -246,14 +246,14 @@ const YOGA_CORE: Move[] = [
     name: n('Easy Seat', 'Posizione facile', 'Postura fácil', 'Posture facile', 'Bequemer Sitz', 'Postura fácil'),
     cue: c('Cross the legs comfortably, sit tall on the sitting bones, hands resting on the knees, soften the face.', 'Incrocia le gambe comodamente, siedi alto sugli ischi, mani sulle ginocchia, rilassa il viso.'),
     short: c('Sit tall.', 'Siedi con la schiena alta.'),
-    focus: ['hipOpeners'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative', 'ashtanga', 'sunSalutation'], frames: [[180, 180, 30, 70, 30, 70, 80, -100, 80, -100]],
+    focus: ['hipOpeners'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative', 'ashtanga', 'sunSalutation'], frames: [[180, 180, 42, 85, 42, 85, 95, -90, 95, -90, 0, 0, 0, 55, -75]],
   }),
   y({
     id: 'seatedSideBend', sanskrit: 'Parsva Sukhasana', position: 'seated', level: 1, intensity: 1.5, bilateral: true,
     name: n('Seated Side Bend', 'Flessione laterale seduta', 'Flexión lateral sentada', 'Flexion latérale assise', 'Sitzende Seitbeuge', 'Flexão lateral sentada'),
     cue: c('One hand to the floor beside you, sweep the other arm up and over, lengthening the whole side body.', 'Una mano a terra di fianco, porta l\'altro braccio in alto e oltre, allungando tutto il fianco.'),
     short: c('Lengthen the side.', 'Allunga il fianco.'),
-    focus: ['flexibility', 'spineMobility'], styles: ['vinyasa', 'hatha', 'gentle', 'sunSalutation'], frames: [[195, 190, -20, 0, 200, 200, 80, -100, 80, -100]],
+    focus: ['flexibility', 'spineMobility'], styles: ['vinyasa', 'hatha', 'gentle', 'sunSalutation'], frames: [[195, 190, -20, 0, 200, 200, 80, -100, 80, -100, 0, 0, 0, 45, 25]],
   }),
   y({
     id: 'staff', sanskrit: 'Dandasana', position: 'seated', level: 1, intensity: 1.5,
@@ -281,14 +281,14 @@ const YOGA_CORE: Move[] = [
     name: n('Bound Angle', 'Angolo legato', 'Ángulo atado', 'Angle lié', 'Schmetterling', 'Ângulo amarrado'),
     cue: c('Soles of the feet together, knees open wide, hold the feet and lengthen the spine, fold forward if it feels good.', 'Piante dei piedi unite, ginocchia aperte, prendi i piedi e allunga la colonna, piegati in avanti se è piacevole.'),
     short: c('Knees open wide.', 'Ginocchia aperte.'),
-    focus: ['hipOpeners', 'flexibility'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[175, 178, 20, 60, 20, 60, 115, -40, 115, -40]],
+    focus: ['hipOpeners', 'flexibility'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[180, 180, 30, 60, 30, 60, 100, -95, 100, -95, 0, 0, 0, 62, -82]],
   }),
   y({
     id: 'seatedTwist', sanskrit: 'Ardha Matsyendrasana', position: 'seated', level: 2, intensity: 2, bilateral: true,
     name: n('Seated Twist', 'Torsione seduta', 'Torsión sentada', 'Torsion assise', 'Sitzende Drehung', 'Torção sentada'),
     cue: c('Cross one foot over the opposite knee, inhale to lengthen, exhale to twist from the belly toward the bent knee.', 'Incrocia un piede oltre il ginocchio opposto, inspira e allungati, espira e ruota dall\'addome verso il ginocchio piegato.'),
     short: c('Lengthen, then twist.', 'Allungati, poi ruota.'),
-    focus: ['twists', 'spineMobility', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[180, 160, -25, -5, 80, 60, 90, -100, 135, -5]],
+    focus: ['twists', 'spineMobility', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[180, 160, -25, -5, 80, 60, 90, -100, 150, 0]],
   }),
   y({
     id: 'boat', sanskrit: 'Navasana', position: 'seated', level: 2, intensity: 4,
@@ -316,7 +316,7 @@ const YOGA_CORE: Move[] = [
     name: n('Butterfly', 'Farfalla', 'Mariposa', 'Papillon', 'Schmetterling (Yin)', 'Borboleta'),
     cue: c('Soles together with the feet further away, round the spine forward and let the head hang heavy.', 'Piante unite con i piedi più lontani, arrotonda la colonna in avanti e lascia la testa pesante.'),
     short: c('Round and soften.', 'Arrotonda e ammorbidisci.'),
-    focus: ['hipOpeners', 'lowerBack'], styles: ['yin', 'restorative', 'gentle'], frames: [[115, 80, 40, 60, 40, 60, 112, -40, 112, -40, 14]],
+    focus: ['hipOpeners', 'lowerBack'], styles: ['yin', 'restorative', 'gentle'], frames: [[118, 82, 40, 55, 40, 55, 100, -95, 100, -95, 14, 0, 0, 62, -82]],
   }),
   y({
     id: 'caterpillar', sanskrit: 'Caterpillar', position: 'seated', level: 1, intensity: 1,
@@ -381,28 +381,28 @@ const YOGA_CORE: Move[] = [
     name: n('Supine Twist', 'Torsione supina', 'Torsión supina', 'Torsion allongée', 'Liegende Drehung', 'Torção deitada'),
     cue: c('Draw one knee into the chest and guide it across the body, opening the opposite arm and turning the gaze away.', 'Porta un ginocchio al petto e guidalo dall\'altra parte, apri il braccio opposto e gira lo sguardo nella direzione opposta.'),
     short: c('Let the knee fall across.', 'Lascia cadere il ginocchio di lato.'),
-    focus: ['twists', 'lowerBack', 'spineMobility'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative', 'ashtanga'], frames: [[-90, -100, 170, 170, -170, -170, 90, 90, 30, -60]],
+    focus: ['twists', 'lowerBack', 'spineMobility'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative', 'ashtanga'], frames: [[-90, -98, 180, 180, 180, 180, 150, 60, 150, 60, 0, 0, 0, 0, 0, 72, 88]],
   }),
   y({
     id: 'happyBaby', sanskrit: 'Ananda Balasana', position: 'supine', level: 1, intensity: 1.5,
     name: n('Happy Baby', 'Bambino felice', 'Bebé feliz', 'Bébé heureux', 'Glückliches Baby', 'Bebê feliz'),
     cue: c('Hold the outer edges of the feet, knees toward the armpits, let the low back melt into the mat.', 'Prendi il bordo esterno dei piedi, ginocchia verso le ascelle, lascia la bassa schiena sciogliersi sul tappetino.'),
     short: c('Rock gently.', 'Dondola dolcemente.'),
-    focus: ['hipOpeners', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin'], frames: [[-90, -90, 160, 170, 160, 170, -155, 180, -155, 180]],
+    focus: ['hipOpeners', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin'], frames: [[-90, -92, 160, 170, 160, 170, -150, 180, -150, 180, 0, 0, 0, 25, 25]],
   }),
   y({
     id: 'kneesToChest', sanskrit: 'Apanasana', position: 'supine', level: 1, intensity: 1,
     name: n('Knees to Chest', 'Ginocchia al petto', 'Rodillas al pecho', 'Genoux à la poitrine', 'Knie zur Brust', 'Joelhos ao peito'),
     cue: c('Hug both knees into the chest, rock gently side to side to massage the low back.', 'Abbraccia le ginocchia al petto, dondola dolcemente da un lato all\'altro per massaggiare la bassa schiena.'),
     short: c('Hug the knees.', 'Abbraccia le ginocchia.'),
-    focus: ['lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'restorative', 'yin', 'ashtanga'], frames: [[-90, -90, 150, 170, 150, 170, -145, 90, -145, 90]],
+    focus: ['lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'restorative', 'yin', 'ashtanga'], frames: [[-90, -95, 140, 115, 140, 115, -145, 90, -145, 90]],
   }),
   y({
     id: 'recliningBound', sanskrit: 'Supta Baddha Konasana', position: 'supine', level: 1, intensity: 1,
     name: n('Reclining Bound Angle', 'Angolo legato supino', 'Ángulo atado reclinado', 'Angle lié allongé', 'Liegender Schmetterling', 'Ângulo amarrado deitado'),
     cue: c('Lying on the back, soles together, knees falling open, supported by cushions if needed, hands on the belly.', 'Sdraiato sulla schiena, piante unite, ginocchia aperte, sostenute da cuscini se serve, mani sulla pancia.'),
     short: c('Open and receive.', 'Apriti e accogli.'),
-    focus: ['hipOpeners', 'chestOpening'], styles: ['restorative', 'yin', 'gentle'], frames: [[-90, -90, 80, 80, 80, 80, 140, -135, 130, -140]],
+    focus: ['hipOpeners', 'chestOpening'], styles: ['restorative', 'yin', 'gentle'], frames: [[-90, -90, 80, 80, 80, 80, 135, -45, 135, -45, 0, 0, 0, 65, -70]],
   }),
   y({
     id: 'supportedFish', sanskrit: 'Supported Matsyasana', position: 'supine', level: 1, intensity: 1,

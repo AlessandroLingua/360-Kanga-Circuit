@@ -13,15 +13,17 @@
  */
 import { HIIT, PILATES } from './library/fitness';
 import { YOGA } from './library/yoga';
+import { CATALOG_FACING } from './library/hiitCatalog';
+import { YOGA_CATALOG_FACING } from './library/yogaCatalog';
 import type { Move } from './types';
 
 export const SIDEWAYS = new Set([
   // yoga: hips open to the side
   'warrior2', 'reverseWarrior', 'sideAngle', 'triangle', 'halfMoon', 'goddess', 'prasarita', 'tree',
-  'sidePlank', 'seatedSideBend', 'malasana', 'boundAngle', 'butterfly', 'easySeat',
+  'sidePlank', 'seatedSideBend', 'malasana',
   'yx_flussoNelGuerriero2', 'yx_rotazioneDelBraccioInPancaLateraleConGinocchioAbbassato', 'yx_oscillazioniInPosizioneSedutaConLeGambeDivaricate',
   // pilates: side-lying and side-bending work
-  'sideKick', 'clam', 'mermaid', 'px_preparazioneInternoCosciaSulFianco', 'px_preparazionePerClamshellSulFianco',
+  'mermaid',
   // hiit: lateral movement
   'jumpingJacks', 'skaters', 'x_abductorSquats', 'x_sideLungeHold',
 ]);
@@ -32,7 +34,7 @@ const key = (m: Move) => JSON.stringify(m.frames);
 /** Body turn in degrees for a move: 90 = facing the camera, 0 = profile. */
 export function yawFor(m: Move | undefined): number {
   if (!m) return 0;
-  if (SIDEWAYS.has(m.id)) return 90;
+  if (SIDEWAYS.has(m.id) || CATALOG_FACING.has(m.id) || YOGA_CATALOG_FACING.has(m.id)) return 90;
   if (!byFrames) {
     byFrames = new Map();
     for (const c of [...YOGA, ...PILATES, ...HIIT]) if (SIDEWAYS.has(c.id)) byFrames.set(key(c), 90);

@@ -33,7 +33,7 @@ export function preloadFigure(model: FigureModel) {
   mod?.preloadFigure3D(model);
 }
 
-export function drawAnyFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, h: number, theme: DrawTheme, breath = 0, view?: { yaw?: number; orbit?: number; elev?: number }) {
+export function drawAnyFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, h: number, theme: DrawTheme, breath = 0, view?: { yaw?: number; orbit?: number; elev?: number; wall?: boolean }) {
   ensure();
   const model = theme.model ?? 'female';
   if (mod?.figure3DReady(model)) {

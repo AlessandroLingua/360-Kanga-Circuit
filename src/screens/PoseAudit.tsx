@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { HIIT, PILATES } from '../engine/library/fitness';
 import { YOGA } from '../engine/library/yoga';
 import { yawFor } from '../engine/facing';
+import { needsWall } from '../engine/animate';
 import type { Move } from '../engine/types';
 
 /**
  * Developer screen (#audit): every distinct pose drawn in 3D from the side and from a
  * three-quarter front view, to check that all exercises are anatomically possible.
- * ?p=<page> picks the page, ?f=<frame index> a different keyframe.
+ * ?p=<page> picks the page, ?f=<frame index> a different keyframe, ?ids=a,b only those moves.
  */
 export function PoseAudit() {
   const list = useMemo(() => {
@@ -20,7 +21,8 @@ export function PoseAudit() {
         out.push(m);
       }
     }
-    return out;
+    const ids = new URLSearchParams(location.hash.split('?')[1] ?? '').get('ids');
+    return ids ? out.filter((m) => ids.split(',').includes(m.id)) : out;
   }, []);
   const q = new URLSearchParams(location.hash.split('?')[1] ?? '');
   const [page, setPage] = useState(Number(q.get('p') ?? 0));
@@ -68,7 +70,7 @@ function Cell({ m, frameIdx }: { m: Move; frameIdx?: number }) {
       t.setTransform(2, 0, 0, 2, 0, 0);
       [0, 60].forEach((orbit, i) => {
         t.clearRect(0, 0, half, h);
-        f3.drawFigure3D(t, fr, half, h, 'female', 0, 0.9, { yaw, orbit });
+        f3.drawFigure3D(t, fr, half, h, 'female', 0, 0.9, { yaw, orbit, wall: needsWall(m) });
         ctx.drawImage(tmp, 0, 0, half * 2, h * 2, i * half, 0, half, h);
       });
       ctx.fillStyle = '#fff';

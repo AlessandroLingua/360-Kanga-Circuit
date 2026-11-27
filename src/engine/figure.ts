@@ -322,6 +322,9 @@ export function drawFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, 
 
 /** Mirror isn't needed for a side view: "left side" is shown by swapping near/far limbs. */
 export function swapSides(f: Figure): Figure {
-  const [t, h, fua, ffa, nua, nfa, fth, fsh, nth, nsh, c = 0] = f;
-  return [t, h, nua, nfa, fua, ffa, nth, nsh, fth, fsh, c];
+  const [t, h, fua, ffa, nua, nfa, fth, fsh, nth, nsh, c = 0, ...rest] = f;
+  // (side-lying extras stay: the body keeps lying on the same side)
+  // legs dropped to one side (figure[15]) go to the other side
+  if (rest[4]) rest[4] = -rest[4];
+  return [t, h, nua, nfa, fua, ffa, nth, nsh, fth, fsh, c, ...rest];
 }

@@ -19,7 +19,19 @@ type Family = {
   level: 1 | 2 | 3;
   cue: L10n;
   tags?: MoveTag[];
+  /** own keyframes instead of borrowing them from `from` */
+  frames?: number[][];
+  /** 90: the movement happens out to the sides, so the body faces the camera */
+  facing?: 90;
 };
+
+/** Catalog exercises whose body faces the camera (lateral arm or leg work). */
+export const CATALOG_FACING = new Set<string>();
+
+// standing, arms by the sides; arms out to a T; arms overhead (faced to the camera: out to the sides)
+const ARMS_LOW = [180, 180, 14, 10, 14, 10, -3, -3, 3, 3];
+const ARMS_T = [180, 180, 90, 90, 90, 90, -3, -3, 3, 3];
+const ARMS_UP = [180, 180, 165, 170, 165, 170, -3, -3, 3, 3];
 
 const c = (en: string, it: string): L10n => ({ en, it });
 
@@ -27,7 +39,7 @@ const FAMILIES: Record<string, Family> = {
   stretchHam: { from: ['uttanasana'], position: 'standing', focus: ['hamstrings', 'flexibility'], intensity: 1.5, met: 2.5, level: 1, cue: c('Fold forward from the hips with soft knees and let the back of the legs lengthen.', 'Piegati in avanti dalle anche con le ginocchia morbide e lascia allungare la parte posteriore delle gambe.') },
   stretchQuad: { from: ['lowLunge'], position: 'kneeling', focus: ['quads', 'hipFlexors', 'flexibility'], intensity: 1.5, met: 2.5, level: 1, cue: c('Open the front of the thigh and hip; keep the pelvis tucked and breathe slowly.', 'Apri la parte anteriore della coscia e dell\'anca; bacino in retroversione e respira lento.'), tags: ['knee'] },
   stretchHip: { from: ['pigeon'], position: 'seated', focus: ['hipOpeners', 'glutes', 'flexibility'], intensity: 1.5, met: 2.5, level: 1, cue: c('Ease into the hip, keep the spine long and let the outer hip soften.', 'Entra piano nell\'anca, colonna lunga, lascia ammorbidire l\'esterno dell\'anca.') },
-  stretchSide: { from: ['tadasana', 'reverseWarrior'], position: 'standing', focus: ['flexibility', 'spineMobility'], intensity: 1.5, met: 2.5, level: 1, cue: c('Reach long through the side of the body, ribs lifting away from the hips.', 'Allungati lungo il fianco, le costole si allontanano dalle anche.') },
+  stretchSide: { from: ['tadasana', 'reverseWarrior'], facing: 90, position: 'standing', focus: ['flexibility', 'spineMobility'], intensity: 1.5, met: 2.5, level: 1, cue: c('Reach long through the side of the body, ribs lifting away from the hips.', 'Allungati lungo il fianco, le costole si allontanano dalle anche.') },
   stretchUpper: { from: ['tadasana'], position: 'standing', focus: ['shoulders', 'chestOpening', 'neckUpperBack'], intensity: 1.5, met: 2.5, level: 1, cue: c('Relax the shoulders down, breathe into the stretch and keep the neck long.', 'Spalle rilassate in basso, respira nell\'allungamento e collo lungo.') },
   stretchSeated: { from: ['seatedFold'], position: 'seated', focus: ['hamstrings', 'lowerBack', 'flexibility'], intensity: 1.5, met: 2.3, level: 1, cue: c('Sit tall, then fold forward from the hips without forcing.', 'Siedi alto, poi piegati in avanti dalle anche senza forzare.') },
   stretchTwist: { from: ['supineTwist'], position: 'supine', focus: ['twists', 'spineMobility', 'lowerBack'], intensity: 1.5, met: 2.3, level: 1, cue: c('Let the knees fall to one side and keep both shoulders heavy.', 'Lascia cadere le ginocchia da un lato e tieni entrambe le spalle pesanti.') },
@@ -35,6 +47,9 @@ const FAMILIES: Record<string, Family> = {
   stretchKnees: { from: ['kneesToChest'], position: 'supine', focus: ['lowerBack', 'hipOpeners'], intensity: 1.3, met: 2.2, level: 1, cue: c('Hug the knee in and let the lower back release into the floor.', 'Abbraccia il ginocchio e lascia che la zona lombare si rilassi sul pavimento.') },
   stretchCalf: { from: ['downDog'], position: 'inverted', focus: ['hamstrings', 'flexibility'], intensity: 1.8, met: 2.5, level: 1, cue: c('Press the heel toward the floor and lengthen the back of the lower leg.', 'Spingi il tallone verso terra e allunga il polpaccio.'), tags: ['wrist'] },
   fold: { from: ['prasarita'], position: 'standing', focus: ['hamstrings', 'flexibility'], intensity: 1.8, met: 2.5, level: 1, cue: c('Feet wide, hinge forward with a long spine and let the head hang.', 'Piedi larghi, piegati in avanti con la colonna lunga e lascia pendere la testa.') },
+  armsSide: { from: [], frames: [ARMS_LOW, ARMS_T], facing: 90, position: 'standing', focus: ['shoulders', 'armStrength'], intensity: 2.8, met: 4, level: 1, cue: c('Stand tall, brace the core and lift the arms out to the sides with control.', 'In piedi alto, addome attivo, solleva le braccia lateralmente con controllo.') },
+  angel: { from: [], frames: [ARMS_LOW, ARMS_UP], facing: 90, position: 'standing', focus: ['shoulders', 'chestOpening', 'neckUpperBack'], intensity: 2.5, met: 3.5, level: 1, cue: c('Sweep the arms out to the sides and up overhead like wings, then lower them slowly.', 'Porta le braccia lateralmente e sopra la testa come ali, poi abbassale lentamente.') },
+  reversePlank: { from: [], frames: [[-113, -122, 0, 0, 0, 0, 67, 67, 67, 67]], position: 'seated', focus: ['armStrength', 'shoulders', 'glutes', 'core'], intensity: 3.8, met: 5, level: 2, cue: c('Hands behind under the shoulders, fingers toward the feet; lift the hips until the body is one straight line.', 'Mani dietro sotto le spalle, dita verso i piedi; solleva le anche finché il corpo è una linea dritta.'), tags: ['wrist'] },
   arms: { from: ['tadasana', 'urdhvaHastasana'], position: 'standing', focus: ['shoulders', 'armStrength'], intensity: 2.8, met: 4, level: 1, cue: c('Stand tall, brace the core and move the arms with control through the full range.', 'In piedi alto, addome attivo, muovi le braccia con controllo per tutta l\'ampiezza.') },
   punch: { from: ['chair', 'tadasana'], position: 'standing', focus: ['shoulders', 'armStrength', 'core'], intensity: 3.8, met: 6, level: 1, cue: c('Soft knees, fists by the chin, punch fast and pull back just as quickly.', 'Ginocchia morbide, pugni al mento, colpisci veloce e richiama altrettanto rapido.') },
   calf: { from: ['tadasana', 'urdhvaHastasana'], position: 'standing', focus: ['legStrength', 'balance'], intensity: 2.8, met: 4, level: 1, cue: c('Rise onto the balls of the feet, pause at the top and lower slowly.', 'Sali sulle punte, fermati in alto e scendi lentamente.') },
@@ -42,16 +57,16 @@ const FAMILIES: Record<string, Family> = {
   kick: { from: ['tadasana', 'highKnees'], position: 'standing', focus: ['legStrength', 'core', 'hipFlexors'], intensity: 3.8, met: 6, level: 1, cue: c('Stand tall, kick with control and bring the leg back without leaning.', 'Busto alto, calcia con controllo e riporta la gamba senza inclinarti.') },
   legLiftStanding: { from: ['tadasana', 'tree'], position: 'standing', focus: ['glutes', 'balance'], intensity: 3, met: 4, level: 1, cue: c('Shift weight to the standing leg and lift the other leg without tipping the torso.', 'Sposta il peso sulla gamba d\'appoggio e solleva l\'altra senza inclinare il busto.') },
   squat: { from: ['squat'], position: 'standing', focus: ['legStrength', 'glutes', 'quads'], intensity: 3.6, met: 5, level: 1, cue: c('Feet hip-width, hips back and down, chest up, drive through the heels to stand.', 'Piedi alla larghezza delle anche, anche indietro e giù, petto alto, spingi sui talloni per risalire.') },
-  sumo: { from: ['goddess', 'tadasana'], position: 'standing', focus: ['glutes', 'quads', 'hipOpeners'], intensity: 3.6, met: 5, level: 1, cue: c('Wide stance, toes out, knees track over the toes as you sink and rise.', 'Gambe larghe, punte in fuori, ginocchia sopra le punte mentre scendi e risali.') },
+  sumo: { from: ['goddess', 'tadasana'], facing: 90, position: 'standing', focus: ['glutes', 'quads', 'hipOpeners'], intensity: 3.6, met: 5, level: 1, cue: c('Wide stance, toes out, knees track over the toes as you sink and rise.', 'Gambe larghe, punte in fuori, ginocchia sopra le punte mentre scendi e risali.') },
   squatHold: { from: ['wallSit'], position: 'standing', focus: ['quads', 'legStrength', 'glutes'], intensity: 3.5, met: 4.5, level: 1, cue: c('Sit low and hold; weight in the heels, chest proud, breathe steadily.', 'Resta in basso e mantieni; peso sui talloni, petto aperto, respira regolare.') },
   jumpSquat: { from: ['jumpSquat'], position: 'standing', focus: ['legStrength', 'glutes'], intensity: 5, met: 9, level: 3, cue: c('Squat down, explode up and land softly through the whole foot.', 'Scendi in squat, esplodi verso l\'alto e atterra morbido su tutto il piede.'), tags: ['jump', 'knee'] },
   lunge: { from: ['lunges'], position: 'standing', focus: ['legStrength', 'quads', 'glutes', 'balance'], intensity: 3.8, met: 6, level: 1, cue: c('Step long, lower until both knees bend to about ninety degrees, push back up.', 'Fai un passo lungo, scendi finché le ginocchia sono a circa novanta gradi e risali.'), tags: ['knee'] },
-  sideLunge: { from: ['skaters'], position: 'standing', focus: ['legStrength', 'glutes', 'hipOpeners'], intensity: 3.8, met: 6, level: 1, cue: c('Step out wide, sit back into one hip with the other leg straight, then push back.', 'Fai un passo laterale ampio, siedi su un\'anca con l\'altra gamba tesa, poi spingi per tornare.'), tags: ['knee'] },
+  sideLunge: { from: ['skaters'], facing: 90, position: 'standing', focus: ['legStrength', 'glutes', 'hipOpeners'], intensity: 3.8, met: 6, level: 1, cue: c('Step out wide, sit back into one hip with the other leg straight, then push back.', 'Fai un passo laterale ampio, siedi su un\'anca con l\'altra gamba tesa, poi spingi per tornare.'), tags: ['knee'] },
   curtsey: { from: ['lunges', 'tadasana'], position: 'standing', focus: ['glutes', 'legStrength', 'balance'], intensity: 3.8, met: 6, level: 2, cue: c('Cross one leg behind on a diagonal, lower with control and stand tall again.', 'Incrocia una gamba dietro in diagonale, scendi con controllo e torna in piedi.'), tags: ['knee'] },
-  jack: { from: ['jumpingJacks'], position: 'standing', focus: ['legStrength', 'shoulders'], intensity: 4, met: 8, level: 1, cue: c('Jump the feet out as the arms rise, back in as they lower, light on the feet.', 'Salta aprendo i piedi mentre alzi le braccia, chiudi mentre le abbassi, leggero sui piedi.'), tags: ['jump'] },
+  jack: { from: ['jumpingJacks'], facing: 90, position: 'standing', focus: ['legStrength', 'shoulders'], intensity: 4, met: 8, level: 1, cue: c('Jump the feet out as the arms rise, back in as they lower, light on the feet.', 'Salta aprendo i piedi mentre alzi le braccia, chiudi mentre le abbassi, leggero sui piedi.'), tags: ['jump'] },
   run: { from: ['highKnees'], position: 'standing', focus: ['legStrength', 'core', 'hipFlexors'], intensity: 4.6, met: 8.5, level: 1, cue: c('Drive the knees up quickly, stay on the balls of the feet and pump the arms.', 'Porta su le ginocchia velocemente, resta sulle punte e accompagna con le braccia.') },
   buttKick: { from: ['buttKicks'], position: 'standing', focus: ['quads', 'legStrength'], intensity: 4.2, met: 8, level: 1, cue: c('Kick the heels toward the glutes in a quick rhythm, staying light.', 'Calcia i talloni verso i glutei con ritmo veloce, restando leggero.') },
-  skater: { from: ['skaters'], position: 'standing', focus: ['legStrength', 'glutes', 'balance'], intensity: 4.5, met: 7, level: 2, cue: c('Bound side to side, land softly on one leg and let the other swing behind.', 'Salta da un lato all\'altro, atterra morbido su una gamba e lascia l\'altra dietro.'), tags: ['jump'] },
+  skater: { from: ['skaters'], facing: 90, position: 'standing', focus: ['legStrength', 'glutes', 'balance'], intensity: 4.5, met: 7, level: 2, cue: c('Bound side to side, land softly on one leg and let the other swing behind.', 'Salta da un lato all\'altro, atterra morbido su una gamba e lascia l\'altra dietro.'), tags: ['jump'] },
   burpee: { from: ['burpee'], position: 'standing', focus: ['core', 'legStrength', 'armStrength'], intensity: 5, met: 10, level: 3, cue: c('Hands down, step or jump back to plank, return the feet and stand or jump up.', 'Mani a terra, passa in plank, riporta i piedi e torna in piedi o salta.'), tags: ['jump', 'wrist'] },
   walkout: { from: ['uttanasana', 'plank'], position: 'armBalance', focus: ['core', 'shoulders', 'hamstrings'], intensity: 3.8, met: 6, level: 1, cue: c('Fold down, walk the hands out to plank, then walk them back and roll up.', 'Piegati, cammina con le mani fino al plank, poi torna indietro e risali.'), tags: ['wrist'] },
   pushup: { from: ['pushUp'], position: 'armBalance', focus: ['armStrength', 'chestOpening', 'core'], intensity: 4.3, met: 7, level: 2, cue: c('Hands under the shoulders, body in one line, lower the chest and press away.', 'Mani sotto le spalle, corpo in linea, abbassa il petto e spingi via il pavimento.'), tags: ['wrist'] },
@@ -94,7 +109,8 @@ const RULES: [RegExp, string][] = [
   [/push ?ups?|pushup|press-?ups?|press up|commando|gorilla|tricep push/i, 'pushup'],
   [/mountain climber|spiderman|climber/i, 'climber'],
   [/bear|lateral bear|military crawl|frogger/i, 'bear'],
-  [/crab|reverse plank|l to crab/i, 'crab'],
+  [/reverse (plank|table)/i, 'reversePlank'],
+  [/crab|l to crab/i, 'crab'],
   [/tricep dip|dips?\b/i, 'dip'],
   [/plank|shoulder taps|plank jack|hip dips/i, 'plank'],
   [/glute bridge|bridge|hip thrust/i, 'bridge'],
@@ -110,7 +126,7 @@ const RULES: [RegExp, string][] = [
   [/cross crunch|criss|twist|toe touch.*twist|oblique|side crunch|cross body crunch|circle crunch|three way/i, 'twistCrunch'],
   [/crunch|heel tap|toe tap crunch|reach up|butterfly (sit|crunch|cross)|frog crunch|knee in|knee to nose|toe touches?$|wide toe touch|double crab|knee lift crunch/i, 'crunch'],
   [/fire hydrant|donkey|calci dell|table top|four point|kick backs?|kickback|frog kick|bird|quadruped|cat|inner thigh(?! circles)/i, 'quadruped'],
-  [/clam|side leg|inner thigh|abductor|lifted clam|layer bend|leg lift knee|triangle leg/i, 'sideLying'],
+  [/clam|side leg|inner thigh|abductor(?! squat)|lifted clam|layer bend|leg lift knee|triangle leg/i, 'sideLying'],
   [/jump squat|squat jump|explosive squat|jump to drop|squat to hop|knee down squat to hop|drop squat/i, 'jumpSquat'],
   [/sumo|wide squat|pivot squat|plié|deep sumo|abductor squat/i, 'sumo'],
   [/squat hold|chair|wall sit|squat to squat hold/i, 'squatHold'],
@@ -128,7 +144,9 @@ const RULES: [RegExp, string][] = [
   [/standing leg lift|leg lift|leg circles|leg swing|pendulum|straight leg|leg raise/i, 'legLiftStanding'],
   [/calf raise|calf/i, 'calf'],
   [/punch|slams/i, 'punch'],
-  [/arm|angel|robot|milk jug|curly|raise|circles|scapula|shoulder roll|wrist|fly|flies|c-rotation|t-raise/i, 'arms'],
+  [/angel/i, 'angel'],
+  [/lateral raise|side arm|arm circles|\bfly\b|flies|t-raise|t raise|arm swing|arm open/i, 'armsSide'],
+  [/arm|robot|milk jug|curly|raise|circles|scapula|shoulder roll|wrist|fly|flies|c-rotation|t-raise/i, 'arms'],
 ];
 
 /** Stretches are matched on their own, so "Low Lunge Quad Stretch" is a stretch, not a lunge. */
@@ -136,6 +154,7 @@ const STRETCH_RULES: [RegExp, string][] = [
   [/twist|torsione|supine cross/i, 'stretchTwist'],
   [/calf|polpaccio/i, 'stretchCalf'],
   [/hamstring|forward fold|wide leg fold|piegamento in avanti|seated wide|rocking wide|wide fold|pyramid/i, 'stretchHam'],
+  [/supine thigh|da supini|lying quad/i, 'stretchKnees'],
   [/quad|polpaccio|low lunge|runner stretch|coscia/i, 'stretchQuad'],
   [/figure four|pigeon|butterfly|hip|fianchi|sumo stretch|squat stretch/i, 'stretchHip'],
   [/side (body )?stretch|laterale|side bend|layer|sweep/i, 'stretchSide'],
@@ -179,7 +198,7 @@ export function buildHiitCatalog(lookup: (id: string) => Move | undefined, exist
     const hit = (rules: [RegExp, string][]) => rules.find(([re]) => re.test(raw) || re.test(en))?.[1];
     const fam = FAMILIES[(stretchy ? hit(STRETCH_RULES) ?? 'stretchUpper' : hit(RULES) ?? hit(STRETCH_RULES)) ?? 'squat'];
     // keyframes: the first frame of each template move; a single template keeps its own animation
-    const tpl = fam.from.map(frameOf).filter(Boolean) as number[][][];
+    const tpl = fam.frames ? [fam.frames] : (fam.from.map(frameOf).filter(Boolean) as number[][][]);
     if (!tpl.length) continue;
     let frames = tpl.length === 1 ? tpl[0] : tpl.map((f) => f[0]);
     const s = en.toLowerCase();
@@ -205,6 +224,7 @@ export function buildHiitCatalog(lookup: (id: string) => Move | undefined, exist
     if (hold) intensity -= 0.3;
     if (/lunge|kneel|knee down|knee plank|knee push/.test(s)) tags.add('knee');
     if (/push|plank(?!.*forearm)|bear|crab|dip|walkout|burpee|commando|mountain/.test(s) && !/forearm/.test(s)) tags.add('wrist');
+    if (fam.facing) CATALOG_FACING.add(slug(en));
     out.push({
       id: slug(en),
       discipline: 'hiit',

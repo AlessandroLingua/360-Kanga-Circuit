@@ -11,7 +11,7 @@
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import type { Lang } from '../engine/types';
-import { neuralVoices, pauseNeural, sayNeural, stopNeural, unlockNeural } from './neural';
+import { neuralVoices, pauseNeural, sayNeural, setNeuralVolume, stopNeural, unlockNeural } from './neural';
 
 export interface Teacher {
   id: string;
@@ -173,7 +173,7 @@ async function deviceSay(text: string, t: Teacher, interrupt: boolean): Promise<
         lang: t.lang,
         rate: t.rate,
         pitch: t.pitch,
-        volume: 1,
+        volume: voiceVolume,
         voice: typeof t.voice === 'number' ? t.voice : undefined,
         category: 'playback',
         queueStrategy: interrupt ? 0 : 1,
@@ -196,11 +196,19 @@ async function deviceSay(text: string, t: Teacher, interrupt: boolean): Promise<
       .filter((x) => x.lang.toLowerCase().startsWith(t.lang.slice(0, 2)))
       .sort((a, b) => voiceScore(b.name, b.lang, t.lang) - voiceScore(a.name, a.lang, t.lang))[0];
   if (v) u.voice = v;
+  u.volume = voiceVolume;
   await new Promise<void>((resolve) => {
     u.onend = () => resolve();
     u.onerror = () => resolve();
     speechSynthesis.speak(u);
   });
+}
+
+let voiceVolume = 1;
+/** Voice loudness (0–1) for both the recorded and the device voice. */
+export function setVoiceVolume(v: number) {
+  voiceVolume = Math.max(0, Math.min(1, v));
+  setNeuralVolume(voiceVolume);
 }
 
 export function stopSpeaking() {
