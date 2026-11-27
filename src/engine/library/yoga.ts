@@ -238,7 +238,7 @@ const YOGA_CORE: Move[] = [
     name: n('Thread the Needle', 'Infila l\'ago', 'Enhebrar la aguja', 'Enfiler l\'aiguille', 'Nadelöhr', 'Passar a agulha'),
     cue: c('From tabletop, slide one arm under the other and rest the shoulder and temple down, opening the upper back.', 'Dal tavolo, fai scivolare un braccio sotto l\'altro e appoggia spalla e tempia, aprendo la parte alta della schiena.'),
     short: c('Twist the upper back.', 'Ruota la parte alta della schiena.'),
-    focus: ['twists', 'shoulders', 'neckUpperBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[46, 40, 170, 170, 95, 95, 0, -90, 0, -90]],
+    focus: ['twists', 'shoulders', 'neckUpperBack'], styles: ['vinyasa', 'hatha', 'gentle', 'yin', 'restorative'], frames: [[46, 40, 170, 170, 95, 95, 0, -90, 0, -90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -55]],
   }),
   // ───────────── seated ─────────────
   y({
@@ -274,7 +274,7 @@ const YOGA_CORE: Move[] = [
     name: n('Head-to-Knee', 'Testa al ginocchio', 'Cabeza a la rodilla', 'Tête au genou', 'Kopf-zum-Knie', 'Cabeça ao joelho'),
     cue: c('One leg long, the other foot to the inner thigh, turn the chest toward the long leg and fold forward.', 'Una gamba distesa, l\'altro piede all\'interno della coscia, ruota il petto verso la gamba lunga e piegati in avanti.'),
     short: c('Fold over the long leg.', 'Piegati sulla gamba distesa.'),
-    focus: ['hamstrings', 'flexibility'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga', 'yin'], frames: [[105, 95, 92, 92, 92, 92, 70, -110, 90, 90, 8]],
+    focus: ['hamstrings', 'flexibility'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga', 'yin'], frames: [[105, 95, 92, 92, 92, 92, 90, -90, 90, 90, 8, 0, 0, 0, 0, 0, 0, 0, 0, 72, -78]],
   }),
   y({
     id: 'boundAngle', sanskrit: 'Baddha Konasana', position: 'seated', level: 1, intensity: 1.5,
@@ -288,7 +288,7 @@ const YOGA_CORE: Move[] = [
     name: n('Seated Twist', 'Torsione seduta', 'Torsión sentada', 'Torsion assise', 'Sitzende Drehung', 'Torção sentada'),
     cue: c('Cross one foot over the opposite knee, inhale to lengthen, exhale to twist from the belly toward the bent knee.', 'Incrocia un piede oltre il ginocchio opposto, inspira e allungati, espira e ruota dall\'addome verso il ginocchio piegato.'),
     short: c('Lengthen, then twist.', 'Allungati, poi ruota.'),
-    focus: ['twists', 'spineMobility', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[180, 160, -25, -5, 80, 60, 90, -100, 150, 0]],
+    focus: ['twists', 'spineMobility', 'lowerBack'], styles: ['vinyasa', 'hatha', 'gentle', 'ashtanga'], frames: [[180, 165, -25, -5, 80, 60, 90, -100, 150, 0, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 45]],
   }),
   y({
     id: 'boat', sanskrit: 'Navasana', position: 'seated', level: 2, intensity: 4,

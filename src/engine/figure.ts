@@ -44,7 +44,8 @@ export function skeleton(f: Figure): Skeleton {
 }
 
 /** Shortest-path angle interpolation. */
-export function lerpFigure(a: Figure, b: Figure, t: number): Figure {
+/** `frontal`: the pose is drawn facing the camera, where the far limbs' own side is the negative one. */
+export function lerpFigure(a: Figure, b: Figure, t: number, frontal = false): Figure {
   const n = Math.max(a.length, b.length);
   const out: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -56,6 +57,33 @@ export function lerpFigure(a: Figure, b: Figure, t: number): Figure {
     }
     let d = ((y - x + 540) % 360) - 180;
     out.push(x + d * t);
+  }
+  // Legs move like joints, not like clock hands: the shortest turn of a thigh can swing it up
+  // behind the back (plank → crouch) and of a shin can bend the knee backwards. So the hip is
+  // interpolated as flexion relative to the trunk (−90…270, through the front) and the knee as
+  // bend relative to the thigh (−190…170, folding the shin back), each the way the joint can go.
+  if (a.length >= 10 && b.length >= 10) {
+    const wrapTo = (v: number, lo: number) => ((((v - lo) % 360) + 360) % 360) + lo;
+    for (const [th, sh] of [[6, 7], [8, 9]] as const) {
+      const m = frontal && th === 6 ? -1 : 1;
+      const ha = wrapTo(m * (a[th] - (a[0] - 180)), -90);
+      const hb = wrapTo(m * (b[th] - (b[0] - 180)), -90);
+      out[th] = out[0] - 180 + m * (ha + (hb - ha) * t);
+      const ka = wrapTo(m * (a[sh] - a[th]), -190);
+      const kb = wrapTo(m * (b[sh] - b[th]), -190);
+      out[sh] = out[th] + m * (ka + (kb - ka) * t);
+    }
+    // arms the same way: the shoulder moves through the front (−120…240 from hanging down) and the
+    // elbow only folds (−20…340): an arm going overhead never sweeps across or through the chest
+    for (const [ua, fa] of [[2, 3], [4, 5]] as const) {
+      const m = frontal && ua === 2 ? -1 : 1;
+      const sa = wrapTo(m * (a[ua] - (a[0] - 180)), -120);
+      const sb = wrapTo(m * (b[ua] - (b[0] - 180)), -120);
+      out[ua] = out[0] - 180 + m * (sa + (sb - sa) * t);
+      const ea = wrapTo(m * (a[fa] - a[ua]), -20);
+      const eb = wrapTo(m * (b[fa] - b[ua]), -20);
+      out[fa] = out[ua] + m * (ea + (eb - ea) * t);
+    }
   }
   return out;
 }
@@ -323,8 +351,38 @@ export function drawFigure(ctx: CanvasRenderingContext2D, f: Figure, w: number, 
 /** Mirror isn't needed for a side view: "left side" is shown by swapping near/far limbs. */
 export function swapSides(f: Figure): Figure {
   const [t, h, fua, ffa, nua, nfa, fth, fsh, nth, nsh, c = 0, ...rest] = f;
+  // head turn and tilt (figure[17], [18]) and the trunk twist (figure[22]) go the other way
+  if (rest[11]) rest[11] = -rest[11];
+  if (rest[6]) rest[6] = -rest[6];
+  if (rest[7]) rest[7] = -rest[7];
+  // a crossed leg (figure[19], [20]) stays the crossing one: only the arms change sides
+  if (rest[8] || rest[9]) return [t, h, nua, nfa, fua, ffa, fth, fsh, nth, nsh, c, ...rest];
   // (side-lying extras stay: the body keeps lying on the same side)
   // legs dropped to one side (figure[15]) go to the other side
   if (rest[4]) rest[4] = -rest[4];
   return [t, h, nua, nfa, fua, ffa, nth, nsh, fth, fsh, c, ...rest];
+}
+
+/**
+ * The other side of a pose drawn facing the camera (warrior II, side plank, triangle…). There the
+ * drawing is the frontal plane, so the other side is its mirror image: left and right limbs trade
+ * places and every angle flips. Only swapping the limbs (as for side views) would send each arm
+ * across the chest to the other side during the change.
+ */
+export function mirrorFrontal(f: Figure): Figure {
+  const m = swapSides(f);
+  for (let i = 0; i < 2; i++) m[i] = -m[i];
+  // limb pairs drawn alike are already symmetric (the far one is mirrored when posed): they stay;
+  // only pairs that differ (one arm up, one down; front and back leg) change sides
+  const same = (a: number, b: number) => Math.abs((((a - b + 540) % 360) - 180)) < 20;
+  for (const [x, y] of [[2, 4], [3, 5], [6, 8], [7, 9]] as const) {
+    if (same(f[x], f[y])) {
+      m[x] = f[x];
+      m[y] = f[y];
+    } else {
+      m[x] = -m[x];
+      m[y] = -m[y];
+    }
+  }
+  return m;
 }

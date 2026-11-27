@@ -469,7 +469,11 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
   // straddle), figure[14] the shins (negative = in towards the other side, as when the shins cross).
   const thighOut = raw[13] ?? 0;
   const shinOut = raw[14] ?? 0;
-  if (!sideways && (thighOut || shinOut)) {
+  // figure[19], figure[20]: extra opening of the far (left) leg only — a leg crossed over the other,
+  // ankle on the opposite knee (figure four): thigh turned out, shin across (negative)
+  const crossThigh = raw[19] ?? 0;
+  const crossShin = raw[20] ?? 0;
+  if (!sideways && (thighOut || shinOut || crossThigh || crossShin)) {
     const spread = (seg: Seg, side: 1 | -1, deg: number) => {
       if (!deg) return;
       const v = target[seg];
@@ -482,6 +486,8 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
     spread(far.thigh as Seg, 1, thighOut);
     spread(near.shin as Seg, -1, shinOut);
     spread(far.shin as Seg, 1, shinOut);
+    spread(far.thigh as Seg, 1, crossThigh);
+    spread(far.shin as Seg, 1, crossShin);
   }
   // figure[15]: both legs turned over to one side about the body's long axis (knees dropping
   // to the floor in a supine twist); figure[16]: both arms opened out to their own side (a T)
@@ -491,18 +497,22 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
     const along = dir(torso).normalize();
     for (const sg of [near.thigh, near.shin, far.thigh, far.shin] as Seg[]) target[sg] = target[sg].clone().applyAxisAngle(along, (legsSide * Math.PI) / 180);
   }
-  if (!sideways && armsOut) {
-    const spreadArm = (seg: Seg, side: 1 | -1) => {
+  // figure[21]: the forearms' own opening when it differs (elbows out, hands in: hands on the hips
+  // or behind the head); by default they follow the upper arms
+  const foreOut = raw[21] ?? armsOut;
+  if (!sideways && (armsOut || foreOut)) {
+    const spreadArm = (seg: Seg, side: 1 | -1, deg = armsOut) => {
+      if (!deg) return;
       const v = target[seg];
       const axis = new THREE.Vector3().crossVectors(v, new THREE.Vector3(side, 0, 0));
-      if (axis.lengthSq() > 1e-6) target[seg] = v.clone().applyAxisAngle(axis.normalize(), (armsOut * Math.PI) / 180);
+      if (axis.lengthSq() > 1e-6) target[seg] = v.clone().applyAxisAngle(axis.normalize(), (deg * Math.PI) / 180);
     };
     spreadArm(near.arm as Seg, -1);
-    spreadArm(near.fore as Seg, -1);
-    spreadArm(near.hand as Seg, -1);
+    spreadArm(near.fore as Seg, -1, foreOut);
+    spreadArm(near.hand as Seg, -1, foreOut);
     spreadArm(far.arm as Seg, 1);
-    spreadArm(far.fore as Seg, 1);
-    spreadArm(far.hand as Seg, 1);
+    spreadArm(far.fore as Seg, 1, foreOut);
+    spreadArm(far.hand as Seg, 1, foreOut);
   }
   // Facing the camera the drawing is the frontal plane, so knees can open sideways but not come
   // forward: for sitting cross-legged facing the camera (seated side bend, mermaid) figure[13] turns
@@ -539,8 +549,22 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
   rig.root.quaternion.copy(yawQ);
   for (const b of Object.values(rig.bones)) b.quaternion.copy((b.userData.rest ??= b.quaternion.clone()) as THREE.Quaternion);
   rig.root.updateMatrixWorld(true);
-  const aim = (s: Seg, to: THREE.Vector3) => {
+  const aim = (s: Seg, wanted: THREE.Vector3) => {
     const bone = rig.bones[BONES[s]];
+    // hard joint limits, whoever asks (the pose, the floor solver, the hand IK, a transition):
+    // a knee or an elbow folds to ~155° at most — past that the shin goes through the thigh
+    let to = wanted;
+    const LIMB: Partial<Record<Seg, [string, string]>> = { lShin: ['LeftUpLeg', 'LeftLeg'], rShin: ['RightUpLeg', 'RightLeg'], lFore: ['LeftArm', 'LeftForeArm'], rFore: ['RightArm', 'RightForeArm'] };
+    const lim = LIMB[s];
+    if (lim) {
+      const upper = wp(rig.bones[lim[1]]).sub(wp(rig.bones[lim[0]])).normalize();
+      const fold = upper.angleTo(wanted);
+      const max = (155 * Math.PI) / 180;
+      if (fold > max) {
+        const axis = new THREE.Vector3().crossVectors(upper, wanted);
+        if (axis.lengthSq() > 1e-8) to = upper.clone().applyAxisAngle(axis.normalize(), max);
+      }
+    }
     const { q, d } = rig.bind[s];
     // bind data was taken with the body unturned: turn it with the body
     const restDir = tmpV.copy(d).applyQuaternion(yawQ);
@@ -550,7 +574,42 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
     bone.quaternion.copy(parentQ.invert().multiply(desired));
     bone.updateMatrixWorld(true);
   };
-  for (const s of ORDER) if (target[s]) aim(s, target[s]);
+  // figure[22]: the trunk turned about its own axis (+ = chest towards the left), spread over the
+  // three spine bones like a real spine (most of it in the thoracic part). It happens before the
+  // neck and arms are aimed, so the shoulders turn with the chest and the arms still go where drawn.
+  const twist = raw[22] ?? 0;
+  for (const s of ORDER) {
+    if (target[s]) aim(s, target[s]);
+    if (s === 'spine2' && twist) {
+      const base = wp(rig.bones.Spine);
+      const axis = wp(rig.bones.Neck).sub(base).normalize();
+      for (const [name, k] of [['Spine', 0.2], ['Spine1', 0.35], ['Spine2', 0.45]] as const) twistBone(rig.bones[name], axis, twist * k);
+    }
+  }
+  // figure[17]: head turned to look over a shoulder (+ = to the left); figure[18]: head tilted,
+  // ear towards a shoulder. Neither is visible in a side drawing; neck and head share the motion.
+  const headTurn = raw[17] ?? 0;
+  const headTilt = raw[18] ?? 0;
+  if (headTurn || headTilt) {
+    const turnBone = (bone: THREE.Object3D, axis: THREE.Vector3, deg: number) => {
+      if (!deg) return;
+      const parentQ = bone.parent!.getWorldQuaternion(new THREE.Quaternion());
+      const worldQ = bone.getWorldQuaternion(new THREE.Quaternion());
+      const r = new THREE.Quaternion().setFromAxisAngle(axis, (deg * Math.PI) / 180).multiply(worldQ);
+      bone.quaternion.copy(parentQ.invert().multiply(r));
+      bone.updateMatrixWorld(true);
+    };
+    const headB = rig.bones[BONES.head];
+    const neckB = rig.bones[BONES.neck];
+    const up = wp(headB).sub(wp(neckB)).normalize();
+    // the body's left-right axis (x in the side drawing), turned with the body
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(yawQ);
+    const face = new THREE.Vector3().crossVectors(side, up).normalize();
+    for (const [b, k] of [[neckB, 0.4], [headB, 0.6]] as const) {
+      turnBone(b, up, headTurn * k);
+      turnBone(b, face, headTilt * k);
+    }
+  }
   // supports per 3D side: which hands, knees and feet the pose puts on the floor
   // a straight leg stretched out horizontally just above the floor (pigeon, sleeping swan) lies on it
   const flatLeg = (th: number, sh: number, foot: { y: number }) =>
@@ -567,6 +626,8 @@ function pose(rig: Rig, raw: Figure, breath: number, yaw: number, fixed?: { supp
     [nearSide]: { hand: onFloor(s2.nHand) || reaching(nua, nfa, s2.nHand), knee: onFloor(s2.nKnee) && Math.abs(within(nth, nsh, -180, 180)) > 50, foot: onFloor(s2.nFoot) || flatLeg(nth, nsh, s2.nFoot) || standingLeg(nth, s2.nFoot) },
     [farSide]: { hand: onFloor(s2.fHand) || reaching(fua, ffa, s2.fHand), knee: onFloor(s2.fKnee) && Math.abs(within(fth, fsh, -180, 180)) > 50, foot: onFloor(s2.fFoot) || flatLeg(fth, fsh, s2.fFoot) || standingLeg(fth, s2.fFoot) },
   } as Supports;
+  // a leg lifted out to the side (fire hydrant) bears no weight, whatever the side drawing says
+  if (crossThigh > 30 && Math.abs(within(fth, 0, -180, 180)) < 45) supports[farSide] = { ...supports[farSide], knee: false, foot: false };
   // sitting: the pelvis itself rests on the floor (staff, seated folds, easy seat, boat…)
   // side-lying (turned to the camera): the hip on the floor is part of the support
   const trunkLow = Math.abs(Math.abs(within(torso, 0, -180, 180)) - 90) < 30 && floor2D < 26;
@@ -763,6 +824,55 @@ function settleLegs(rig: Rig, sup: Supports, aim: Aim, seat: boolean, lying: boo
 
 const wp = (b: THREE.Object3D) => b.getWorldPosition(new THREE.Vector3());
 
+/** Turns a bone (and so everything it carries) about a world axis. */
+function twistBone(bone: THREE.Object3D, axis: THREE.Vector3, deg: number) {
+  if (!deg) return;
+  const parentQ = bone.parent!.getWorldQuaternion(new THREE.Quaternion());
+  const worldQ = bone.getWorldQuaternion(new THREE.Quaternion());
+  const r = new THREE.Quaternion().setFromAxisAngle(axis, (deg * Math.PI) / 180).multiply(worldQ);
+  bone.quaternion.copy(parentQ.invert().multiply(r));
+  bone.updateMatrixWorld(true);
+}
+
+const FINGERS = ['Index', 'Middle', 'Ring', 'Pinky'] as const;
+/** How much each phalanx bends when the hand closes: knuckle, middle and end joints. */
+const CURL = [62, 95, 60];
+
+/**
+ * Wrist and fingers, which the drawings don't describe: figure[23] bends the wrist (+ = back of
+ * the hand towards the forearm, as when the fingers are drawn back in a wrist stretch; − = palm
+ * towards the forearm), figure[24] closes the fingers from 0 (open, flat) to 1 (fist). A hand that
+ * is not given a value rests the way real hands do, softly curled; a hand bearing weight stays flat.
+ */
+function shapeHands(rig: Rig, f: Figure, sup: Supports) {
+  const bend = f[23] ?? 0;
+  for (const side of ['Left', 'Right'] as const) {
+    const B = rig.bones;
+    const hand = B[side + 'Hand'];
+    const idx = B[side + 'HandIndex1'];
+    const pinky = B[side + 'HandPinky1'];
+    if (!hand || !idx || !pinky) continue;
+    const flat = sup[side].hand;
+    const curl = flat ? 0 : (f[24] ?? 0.22);
+    // the knuckle line: across the hand, oriented the same way anatomically for both hands
+    const across = () => (side === 'Right' ? wp(B[side + 'HandPinky1']).sub(wp(B[side + 'HandIndex1'])) : wp(B[side + 'HandIndex1']).sub(wp(B[side + 'HandPinky1']))).normalize();
+    // (about the knuckle line, a negative turn closes towards the palm)
+    if (bend && !flat) twistBone(hand, across(), bend);
+    if (!curl) continue;
+    for (const fg of FINGERS) {
+      for (let j = 1; j <= 3; j++) {
+        const bone = B[side + 'Hand' + fg + j];
+        if (bone) twistBone(bone, across(), -CURL[j - 1] * curl);
+      }
+    }
+    // the thumb folds in less and towards the palm
+    for (let j = 2; j <= 3; j++) {
+      const bone = B[side + 'HandThumb' + j];
+      if (bone) twistBone(bone, across(), -35 * curl);
+    }
+  }
+}
+
 /**
  * Hands that bear weight in the pose (they touch the floor in the 2D drawing: plank, tabletop,
  * downward dog…) must touch the floor in 3D too. The 3D arm is a little shorter relative to the
@@ -898,6 +1008,7 @@ function solve(rig: Rig, f: Figure, breath: number, yaw: number): Supports {
     return hit.sup;
   }
   const sup = solveNow(rig, f, breath, yaw);
+  shapeHands(rig, f, sup);
   if (solvedCache.size > 400) solvedCache.delete(solvedCache.keys().next().value!);
   solvedCache.set(key, { q: bones.map((b) => b.quaternion.clone()), root: rig.root.quaternion.clone(), floor: solvedFloor, sup });
   return sup;
@@ -1150,4 +1261,61 @@ export function drawFigure3D(ctx: CanvasRenderingContext2D, f: Figure, w: number
   r.render(scene, camera);
   ctx.drawImage(r.domElement, 0, 0, pw, ph, 0, 0, w, h);
   return true;
+}
+
+
+/**
+ * For checks: anatomy of the solved pose. Lists what a real body cannot do: elbows or knees
+ * folded past their range, knees bent backwards, the hip stretched far behind the trunk, a hand,
+ * foot, elbow or knee inside the trunk. Each entry is a short code with the measured value.
+ */
+export function inspectAnatomy(f: Figure, model: FigureModel = 'female', yaw = 0): string[] | null {
+  const rig = rigs.get(model);
+  if (!rig) return null;
+  solve(rig, f, 0, yaw);
+  const B = rig.bones;
+  const out: string[] = [];
+  const deg = (r: number) => Math.round((r * 180) / Math.PI);
+  const hips = wp(B.Hips);
+  const neck = wp(B.Neck);
+  const up = neck.clone().sub(hips).normalize();
+  const lr = wp(B.LeftUpLeg).sub(wp(B.RightUpLeg)).normalize();
+  const front = lr.clone().cross(up).normalize();
+  // distance from a point to the trunk axis (hips → neck), and how far along it the point falls
+  const toTrunk = (p: THREE.Vector3) => {
+    const v = p.clone().sub(hips);
+    const len = neck.distanceTo(hips);
+    const t = Math.max(0, Math.min(len, v.dot(up)));
+    return { d: v.sub(up.clone().multiplyScalar(t)).length(), t: t / len };
+  };
+  for (const side of ['Left', 'Right'] as const) {
+    const s = side[0];
+    const sh = wp(B[side + 'Arm']);
+    const el = wp(B[side + 'ForeArm']);
+    const ha = wp(B[side + 'Hand']);
+    const elbow = el.clone().sub(sh).normalize().angleTo(ha.clone().sub(el).normalize());
+    if (deg(elbow) > 155) out.push(`${s}Elbow>${deg(elbow)}`);
+    const hp = wp(B[side + 'UpLeg']);
+    const kn = wp(B[side + 'Leg']);
+    const an = wp(B[side + 'Foot']);
+    const thigh = kn.clone().sub(hp).normalize();
+    const shin = an.clone().sub(kn).normalize();
+    const knee = thigh.angleTo(shin);
+    if (deg(knee) > 170) out.push(`${s}Knee>${deg(knee)}`);
+    // the knee only folds backwards: the shin must not swing towards the front of the thigh
+    // the kneecap faces the front of the thigh: perpendicular to it, about the hip's left-right axis
+    const kneeFront = thigh.clone().cross(lr).normalize();
+    if (deg(knee) > 25 && shin.dot(kneeFront) > 0.5) out.push(`${s}KneeBackwards${shin.dot(kneeFront).toFixed(2)}`);
+    // hip extension: thigh behind the trunk line by more than ~50°
+    const down = up.clone().negate();
+    // measured in the side plane only (a leg opened sideways is not extended)
+    const ext = thigh.dot(front) < 0 ? deg(Math.atan2(-thigh.dot(front), thigh.dot(down))) : 0;
+    // (past ~150° the thigh runs along the trunk: that is a deep fold, i.e. flexion)
+    if (ext > 72 && ext < 150) out.push(`${s}HipExt${ext}`);
+    for (const [name, p, lim] of [['Hand', ha, 0.07], ['Elbow', el, 0.08], ['Foot', an, 0.08], ['Knee', kn, 0.09]] as const) {
+      const { d, t } = toTrunk(p);
+      if (t > 0.08 && t < 0.92 && d < lim) out.push(`${s}${name}InTrunk${d.toFixed(2)}`);
+    }
+  }
+  return out;
 }

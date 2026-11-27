@@ -8,7 +8,7 @@ import { PILATES_CATALOG_NAMES } from './pilatesCatalogNames';
 import { YOGA_BY_ID } from './yoga';
 import { itName, PILATES_NAME_TR } from '../../i18n/catalog';
 
-type Family = { from: string[]; position: Position; focus: FocusArea[]; intensity: number; level: 1 | 2 | 3; cue: L10n; tags?: MoveTag[]; sided?: boolean };
+type Family = { frames?: number[][]; from: string[]; position: Position; focus: FocusArea[]; intensity: number; level: 1 | 2 | 3; cue: L10n; tags?: MoveTag[]; sided?: boolean };
 const c = (en: string, it: string): L10n => ({ en, it });
 
 const F: Record<string, Family> = {
@@ -24,8 +24,26 @@ const F: Record<string, Family> = {
   sideLying: { from: ['sideKick'], position: 'supine', focus: ['glutes', 'hipOpeners'], intensity: 2.5, level: 1, sided: true, cue: c('On your side, hips stacked, waist lifted; move the top leg with control.', 'Sul fianco, anche sovrapposte, vita sollevata; muovi la gamba di sopra con controllo.') },
   clam: { from: ['clam'], position: 'supine', focus: ['glutes', 'hipOpeners'], intensity: 2.5, level: 1, sided: true, cue: c('Heels together, open the top knee without rolling the pelvis back.', 'Talloni uniti, apri il ginocchio sopra senza ruotare il bacino indietro.') },
   innerThigh: { from: ['sideKick'], position: 'supine', focus: ['legStrength', 'hipOpeners'], intensity: 2.5, level: 1, sided: true, cue: c('Lift the bottom leg from the inner thigh, keeping it long and the waist lifted.', 'Solleva la gamba di sotto dall\'interno coscia, lunga e con la vita sollevata.') },
-  quadruped: { from: ['catStretch', 'legPullFront'], position: 'kneeling', focus: ['glutes', 'core'], intensity: 2.8, level: 1, sided: true, cue: c('On hands and knees, back flat; move the leg without shifting the hips.', 'A quattro zampe, schiena piatta; muovi la gamba senza spostare le anche.'), tags: ['knee', 'wrist'] },
-  birdDog: { from: ['catStretch'], position: 'kneeling', focus: ['core', 'lowerBack', 'balance'], intensity: 2.8, level: 1, sided: true, cue: c('Reach the opposite arm and leg long, hips level, then draw them in.', 'Allunga braccio e gamba opposti, anche allineate, poi riportali dentro.'), tags: ['wrist'] },
+  // hands and knees; one knee stays bent and lifts the sole toward the ceiling, thigh level with the back
+  // hands and knees; one bent knee lifts out to the side to hip height (thigh and shin turned out)
+  hydrant: { frames: [[105, 110, 0, 0, 0, 0, 0, -90, 0, -90], [105, 110, 0, 0, 0, 0, 0, -90, 0, -90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80, 0]], from: ['catStretch'], position: 'kneeling', focus: ['glutes', 'hipOpeners'], intensity: 2.8, level: 1, sided: true, cue: c('On hands and knees, lift one bent knee out to the side to hip height, keeping the hips level.', "A quattro zampe, solleva di lato un ginocchio piegato fino all'altezza dell'anca, bacino fermo.") },
+  quadruped: { frames: [[105, 110, 0, 0, 0, 0, 0, -90, 0, -90], [103, 108, 0, 0, 0, 0, 0, -90, -88, 175]], from: ['catStretch', 'legPullFront'], position: 'kneeling', focus: ['glutes', 'core'], intensity: 2.8, level: 1, sided: true, cue: c('On hands and knees, back flat; move the leg without shifting the hips.', 'A quattro zampe, schiena piatta; muovi la gamba senza spostare le anche.'), tags: ['knee', 'wrist'] },
+  // hands and knees, then the opposite arm reaches forward and leg back, both level with the trunk
+  // on the back, arms up and shins level (knees over hips); the opposite arm and leg reach long, low
+  deadBug: { frames: [[-90, -90, 180, 180, 180, 180, 180, 90, 180, 90], [-90, -90, -100, -100, 180, 180, 180, 90, 105, 105]], from: ['hundred'], position: 'supine', focus: ['core'], intensity: 2.6, level: 1, sided: true, cue: c('Lower back heavy on the mat; reach one arm overhead and the opposite leg long, then return.', 'Zona lombare appoggiata; allunga un braccio sopra la testa e la gamba opposta, poi torna.') },
+  neckTiltSeated: { frames: [[180,180,42,85,42,85,95,-90,95,-90,0,0,0,55,-75,0,0,0,30,0,0,0,0,0,0.22],[180,180,42,85,42,85,95,-90,95,-90,0,0,0,55,-75,0,0,0,-30,0,0,0,0,0,0.22]], from: [], position: 'seated', focus: ['neckUpperBack', 'shoulders'], intensity: 1.2, level: 1, cue: c('Sit tall and let the ear sink toward one shoulder, then the other.', "Siedi alto e lascia scendere l'orecchio verso una spalla, poi verso l'altra.") },
+  shoulderRollSeated: { frames: [[180,180,125,-60,125,-60,95,-90,95,-90,0,0,0,55,-75,0,45,0,0,0,0,-30,0,0,0.22],[180,180,-35,150,-35,150,95,-90,95,-90,0,0,0,55,-75,0,45,0,0,0,0,-30,0,0,0.22]], from: [], position: 'seated', focus: ['neckUpperBack', 'shoulders'], intensity: 1.2, level: 1, cue: c('Fingertips on the shoulders, draw big slow circles with the elbows.', 'Punte delle dita sulle spalle, disegna grandi cerchi lenti con i gomiti.') },
+  scapula: { frames: [[180,180,90,90,90,90,95,-90,95,-90,0,0,0,55,-75,0,0,0,0,0,0,0,0,0,0.4],[182,182,-15,85,-15,85,95,-90,95,-90,0,0,0,55,-75,0,20,0,0,0,0,-10,0,0,0.4]], from: [], position: 'seated', focus: ['neckUpperBack', 'shoulders'], intensity: 1.2, level: 1, cue: c('Arms forward, then draw the elbows back and squeeze the shoulder blades together.', 'Braccia in avanti, poi porta indietro i gomiti e avvicina le scapole.') },
+  torsoCircles: { frames: [[168,168,42,85,42,85,95,-90,95,-90,-10,0,0,55,-75,0,0,0,0,0,0,0,0,0,0.22],[190,192,42,85,42,85,95,-90,95,-90,10,0,0,55,-75,0,0,0,0,0,0,0,0,0,0.22]], from: [], position: 'seated', focus: ['neckUpperBack', 'shoulders'], intensity: 1.2, level: 1, cue: c('Hands on the knees, circle the trunk slowly forward, to the side and back.', 'Mani sulle ginocchia, fai lenti cerchi con il busto in avanti, di lato e indietro.') },
+  catCowSeated: { frames: [[178,160,42,85,42,85,95,-90,95,-90,-16,0,0,55,-75,0,0,0,0,0,0,0,0,0,0.22],[182,200,42,85,42,85,95,-90,95,-90,14,0,0,55,-75,0,0,0,0,0,0,0,0,0,0.22]], from: [], position: 'seated', focus: ['spineMobility', 'lowerBack'], intensity: 1.2, level: 1, cue: c('Hands on the knees: round the back exhaling, then lift the chest and arch inhaling.', 'Mani sulle ginocchia: arrotonda la schiena espirando, poi solleva il petto e inarca inspirando.') },
+  figureFourSeatedP: { frames: [[196,186,-28,-10,-28,-10,112,90,140,0,0,0,0,0,0,0,0,0,0,48,-96]], from: [], position: 'seated', focus: ['hipOpeners', 'glutes'], intensity: 1.5, level: 1, sided: true, cue: c('Hands behind the hips, one foot down, the other ankle over that knee; lift the chest.', "Mani dietro le anche, un piede a terra, l'altra caviglia sopra quel ginocchio; solleva il petto.") },
+  kneeToArmP: { frames: [[105,110,0,0,0,0,0,-90,0,-90],[98,95,0,0,0,0,0,-90,48,-105,16]], from: [], position: 'kneeling', focus: ['core', 'hipFlexors'], intensity: 2.6, level: 1, sided: true, cue: c('From tabletop, round the back and draw one knee toward the arm, then reach it back.', 'Dal tavolo, arrotonda la schiena e porta un ginocchio verso il braccio, poi riportalo indietro.') },
+  pelvicTilt: { frames: [[-92,-90,88,88,88,88,135,45,135,45],[-90,-90,88,88,88,88,135,45,135,45,-8]], from: [], position: 'supine', focus: ['core', 'lowerBack'], intensity: 1.5, level: 1, cue: c('Knees bent, feet down; gently tilt the pelvis to flatten and then arch the lower back.', 'Ginocchia piegate, piedi a terra; inclina piano il bacino schiacciando e poi inarcando la zona lombare.') },
+  tricepStand: { frames: [[180,175,165,-110,176,-10,0,0,0,0]], from: [], position: 'standing', focus: ['shoulders'], intensity: 1, level: 1, sided: true, cue: c('One arm up, elbow bent, hand between the shoulder blades; the other hand on the elbow.', "Un braccio in alto, gomito piegato, mano tra le scapole; l'altra mano sul gomito.") },
+  crossArmStand: { frames: [[180,180,70,115,90,90,0,0,0,0,0,0,0,0,0,0,-55,0,0,0,0,0,0,0,0.22]], from: [], position: 'standing', focus: ['shoulders'], intensity: 1, level: 1, sided: true, cue: c('Bring one straight arm across the chest and hug it in with the other forearm.', "Porta un braccio teso davanti al petto e tienilo vicino con l'altro avambraccio.") },
+  threadNeedleP: { from: ['threadNeedle'], position: 'kneeling', focus: ['twists', 'shoulders'], intensity: 1.5, level: 1, sided: true, cue: c('From hands and knees slide one arm under the chest and rest the shoulder down.', 'Da quattro zampe fai scivolare un braccio sotto il petto e appoggia la spalla.') },
+  saddleP: { from: ['saddle'], position: 'supine', focus: ['quads', 'hipFlexors'], intensity: 1.5, level: 1, cue: c('Recline only as far as the knees allow, the front of the thighs lengthening.', "Scendi indietro solo quanto permettono le ginocchia, allungando l'interno delle cosce.") },
+  birdDog: { frames: [[105, 110, 0, 0, 0, 0, 0, -90, 0, -90], [100, 105, 88, 88, 0, 0, 0, -90, -86, -86]], from: ['catStretch'], position: 'kneeling', focus: ['core', 'lowerBack', 'balance'], intensity: 2.8, level: 1, sided: true, cue: c('Reach the opposite arm and leg long, hips level, then draw them in.', 'Allunga braccio e gamba opposti, anche allineate, poi riportali dentro.'), tags: ['wrist'] },
   cat: { from: ['catStretch'], position: 'kneeling', focus: ['spineMobility'], intensity: 1.5, level: 1, cue: c('Round the spine on the exhale and lengthen it on the inhale.', 'Arrotonda la colonna espirando e allungala inspirando.') },
   plank: { from: ['legPullFront'], position: 'armBalance', focus: ['core', 'shoulders'], intensity: 3.5, level: 2, cue: c('Long line from head to heels, belly drawn in, shoulders stable.', 'Linea lunga dalla testa ai talloni, pancia dentro, spalle stabili.'), tags: ['wrist'] },
   forearmPlank: { from: ['forearmPlank'], position: 'armBalance', focus: ['core', 'shoulders'], intensity: 3.3, level: 2, cue: c('On the forearms, press the floor away and keep the hips level.', 'Sugli avambracci, spingi via il pavimento e tieni le anche allineate.') },
@@ -45,13 +63,35 @@ const F: Record<string, Family> = {
   kneesChest: { from: ['kneesToChest'], position: 'supine', focus: ['lowerBack'], intensity: 1, level: 1, cue: c('Hug the knees in and let the lower back soften.', 'Abbraccia le ginocchia e ammorbidisci la zona lombare.') },
   happyBaby: { from: ['happyBaby'], position: 'supine', focus: ['hipOpeners'], intensity: 1.2, level: 1, cue: c('Hold the feet, knees wide toward the armpits, rock gently.', 'Afferra i piedi, ginocchia larghe verso le ascelle, dondola piano.') },
   hipStretch: { from: ['pigeon'], position: 'seated', focus: ['hipOpeners', 'glutes'], intensity: 1.5, level: 1, sided: true, cue: c('Open the outer hip slowly, spine long.', 'Apri l\'esterno dell\'anca lentamente, colonna lunga.') },
+  // back knee down under the hip, front leg straight with the heel on the mat, folding over it
+  halfSplit: { frames: [[70, 55, 0, 0, 0, 0, 0, -90, 60, 60]], from: ['lowLunge'], position: 'kneeling', focus: ['hamstrings', 'flexibility'], intensity: 1.8, level: 1, sided: true, cue: c('Back knee down, front leg straight, hips back over the knee; fold over the front leg.', 'Ginocchio dietro a terra, gamba davanti tesa, anche indietro sopra il ginocchio; piegati sulla gamba davanti.') },
+  // lying on the back, one foot on the floor, the other ankle crossed over that knee
+  figureFour: { frames: [[-90, -92, 90, 90, 90, 90, 165, 90, 135, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 52, -98]], from: ['pigeon'], position: 'supine', focus: ['hipOpeners', 'glutes'], intensity: 1.5, level: 1, sided: true, cue: c('On your back, ankle over the opposite knee, the foot flexed; let the knee open away from you.', 'Sulla schiena, caviglia sopra il ginocchio opposto, piede a martello; lascia aprire il ginocchio.') },
   lowLunge: { from: ['lowLunge'], position: 'kneeling', focus: ['hipFlexors', 'quads'], intensity: 1.8, level: 1, sided: true, cue: c('Back knee down, hips forward to stretch the front of the hip.', 'Ginocchio dietro a terra, anche avanti per allungare l\'anca.'), tags: ['knee'] },
   fold: { from: ['seatedFold'], position: 'seated', focus: ['hamstrings', 'lowerBack'], intensity: 1.5, level: 1, cue: c('Lengthen on the inhale, fold a little further on the exhale.', 'Allungati inspirando, piegati un po\' di più espirando.') },
   downDog: { from: ['downDog'], position: 'inverted', focus: ['hamstrings', 'shoulders'], intensity: 2.5, level: 1, cue: c('Hips high, heels reaching down, press the floor away.', 'Anche alte, talloni verso il basso, spingi via il pavimento.'), tags: ['wrist'] },
-  reverseTable: { from: ['tricepDips', 'bridge'], position: 'seated', focus: ['armStrength', 'glutes', 'shoulders'], intensity: 3, level: 2, cue: c('Hands behind, lift the hips level and lower with control.', 'Mani dietro, solleva le anche in linea e scendi con controllo.'), tags: ['wrist'] },
+  // hands behind under the shoulders, knees bent over the feet, hips lifted; the elbows bend back to dip
+  reverseTable: { frames: [[-90, -118, 0, 0, 0, 0, 90, 0, 90, 0], [-80, -108, -40, 15, -40, 15, 98, 0, 98, 0]], from: ['tricepDips', 'bridge'], position: 'seated', focus: ['armStrength', 'glutes', 'shoulders'], intensity: 3, level: 2, cue: c('Hands behind, lift the hips level and lower with control.', 'Mani dietro, solleva le anche in linea e scendi con controllo.'), tags: ['wrist'] },
   standing: { from: ['tadasana', 'urdhvaHastasana'], position: 'standing', focus: ['shoulders', 'flexibility'], intensity: 1.2, level: 1, cue: c('Stand tall and reach long, breathing slowly.', 'In piedi alto, allungati e respira lento.') },
   legCircles: { from: ['legCircles'], position: 'supine', focus: ['hipOpeners', 'core'], intensity: 2.5, level: 1, sided: true, cue: c('Draw small circles with the leg while the pelvis stays perfectly still.', 'Disegna piccoli cerchi con la gamba mentre il bacino resta immobile.') },
 };
+
+/** Names whose movement is specific: checked before every other rule. */
+const SPECIFIC: [RegExp, string][] = [
+  [/inclinazione della testa|rotazione del collo da seduti/i, 'neckTiltSeated'],
+  [/rotazione della spalla da seduti/i, 'shoulderRollSeated'],
+  [/retrazione scapolare/i, 'scapula'],
+  [/cerchi con il corpo/i, 'torsoCircles'],
+  [/gatto( e mucca)? da seduti/i, 'catCowSeated'],
+  [/filo nella cruna/i, 'threadNeedleP'],
+  [/figura a quattro da seduti/i, 'figureFourSeatedP'],
+  [/ginocchio al tricipite/i, 'kneeToArmP'],
+  [/inclinazione pelvica|orologio pelvico/i, 'pelvicTilt'],
+  [/mezza sella reclinata|stiramento della coscia da supini/i, 'saddleP'],
+  [/allungamento del polpaccio/i, 'downDog'],
+  [/^stiramento del tricipite$/i, 'tricepStand'],
+  [/^stiramento del braccio$/i, 'crossArmStand'],
+];
 
 const RULES: [RegExp, string][] = [
   [/^cento$/i, 'hundred'],
@@ -62,10 +102,12 @@ const RULES: [RegExp, string][] = [
   [/curl|crunch/i, 'curl'],
   [/clamshell/i, 'clam'],
   [/interno coscia/i, 'innerThigh'],
-  [/cerchi con le gambe/i, 'legCircles'],
   [/sul fianco/i, 'sideLying'],
+  [/cerchi con le gambe/i, 'legCircles'],
+  [/braccio e gamba opposta da supini|dead bug/i, 'deadBug'],
   [/bird dog|braccio alzato in tavolo|braccio e gamba opposta/i, 'birdDog'],
-  [/fire hydrant|piegamenti della gamba in tavolo|impulsi con la gamba piegata|ginocchio al tricipite|sollevamento gamba in diagonale|piegamento serrato in tavolo/i, 'quadruped'],
+  [/fire hydrant/i, 'hydrant'],
+  [/piegamenti della gamba in tavolo|impulsi con la gamba piegata|ginocchio al tricipite|sollevamento gamba in diagonale|piegamento serrato in tavolo/i, 'quadruped'],
   [/^gatto|dal tavolo al gatto/i, 'cat'],
   [/panca laterale/i, 'sidePlank'],
   [/avambracci/i, 'forearmPlank'],
@@ -85,8 +127,10 @@ const RULES: [RegExp, string][] = [
   [/bambino/i, 'child'],
   [/cucciolo/i, 'puppy'],
   [/abbraccia le ginocchia|abbracciando le ginocchia|ginocchia al petto|da un lato all'altro/i, 'kneesChest'],
-  [/figura a quattro|piccione|stiramento dell'anca|cerchi con i fianchi/i, 'hipStretch'],
-  [/lucertola|mezza rana|mezzo hanuman|stiramento della coscia|mezza sella/i, 'lowLunge'],
+  [/figura a quattro/i, 'figureFour'],
+  [/piccione|stiramento dell'anca|cerchi con i fianchi/i, 'hipStretch'],
+  [/mezzo hanuman/i, 'halfSplit'],
+  [/lucertola|mezza rana|stiramento della coscia|mezza sella/i, 'lowLunge'],
   [/piegamento (in avanti|con le gambe|in angolo)/i, 'fold'],
   [/mattutino|stiramento laterale|stiramento del braccio|stiramento del tricipite/i, 'standing'],
   [/da supini|supina|estensioni/i, 'supineMove'],
@@ -106,8 +150,8 @@ export function buildPilatesCatalog(core: Move[]): Move[] {
   for (const raw of PILATES_CATALOG_NAMES) {
     if (taken.has(norm(raw))) continue;
     taken.add(norm(raw));
-    const fam = F[RULES.find(([re]) => re.test(raw))?.[1] ?? 'seated'];
-    const tpl = fam.from.map((id) => byId[id]?.frames).filter(Boolean) as number[][][];
+    const fam = F[SPECIFIC.find(([re]) => re.test(raw))?.[1] ?? RULES.find(([re]) => re.test(raw))?.[1] ?? 'seated'];
+    const tpl = fam.frames ? [fam.frames] : (fam.from.map((id) => byId[id]?.frames).filter(Boolean) as number[][][]);
     if (!tpl.length) continue;
     const s = raw.toLowerCase();
     let frames = tpl.length === 1 ? tpl[0] : tpl.map((f) => f[0]);
